@@ -1,19 +1,21 @@
 sonar
 =====
 
-Simple Python2 CLI for Subsonic Media Server
+Simple Python3 CLI for Subsonic Media Server
 
 ## Requirements
 
-* Python >= 2.6
+* Python3
 * py-sonic (https://github.com/crustymonkey/py-sonic)
+* docopt (https://github.com/docopt/docopt)
 * Subsonic Media Server (http://www.subsonic.org)
 
 ## Installation
 
 1. Install depencendies
 2. Pull this repo
-3. Make sure sonar is in your path
+3. Copy and edit the `sonar.conf` file to either your home direcotory or the directory of `sonar.py`.
+[4. Make sure sonar is in your path]
 
 *E.g.*
 ```bash
@@ -21,15 +23,21 @@ $ sudo pip install py-sonic
 $ mkdir ~/src/
 $ cd ~/src
 $ git pull https://github.com/n1ck3/sonar
-$ sudo ln -s ~/src/sonar/sonar.py /usr/bin/sonar
+[$ sudo ln -s ~/src/sonar/sonar.py /usr/bin/sonar]
 ```
 
 ## Usage
+### NOTE: This software is nowhere near useful at this point.
 
-###NOTE: This software is nowhere near useful at this point.
+  sonar.py search (artists|albums|songs) SEARCH_STRING... [--limit LIMIT]
+  sonar.py random (albums|songs) [--limit LIMIT]
+  sonar.py shell
+
+---
+
+## Roadmap
 
 The following usage section acts as a implementation checklist. Any commands proceeded by a `# Not yet implemented` are...you guessed it: Not implemented yet.
-___
 
 ### Searching for music
 
