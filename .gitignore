@@ -38,3 +38,4 @@ nosetests.xml
 .sonar.conf
 docopt.py
 libsonic
+mplayer

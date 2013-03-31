@@ -6,200 +6,76 @@ Simple Python3 CLI for Subsonic Media Server
 ## Requirements
 
 * Python3
-* py-sonic (https://github.com/crustymonkey/py-sonic)
 * docopt (https://github.com/docopt/docopt)
+* MPlayer (http://www.mplayerhq.hu)
+* mplayer.py (https://github.com/baudm/mplayer.py.git)
 * Subsonic Media Server (http://www.subsonic.org)
+* py-sonic (https://github.com/n1ck3/py-sonic) (Note: python3 banch)
 
 ## Installation
 
 1. Install depencendies
 2. Pull this repo
-3. Copy and edit the `sonar.conf` file to either your home direcotory or the directory of `sonar.py`.
-[4. Make sure sonar is in your path]
+3. Make sure either you have all the deps in your [python] path or link them into the sonar repo.
+4. Copy and edit the `sonar.conf` file to your home directory `~/sonar.conf`.
+5. Make sure sonar is in your path for easier usage:
 
 *E.g.*
+After having installed and configured `Subsonc` and `MPlayer`:
 ```bash
-$ sudo pip install py-sonic
-$ mkdir ~/src/
-$ cd ~/src
+$ mkdir ~/src && cd ~/src
+$ git pull https://github.com/docopt/docopt
+$ mplayer.py (https://github.com/baudm/mplayer.py.git)
+$ git pull https://github.com/n1ck3/py-sonic && cd py-sonic && git checkout python3 && cd ..
 $ git pull https://github.com/n1ck3/sonar
-[$ sudo ln -s ~/src/sonar/sonar.py /usr/bin/sonar]
+$ cd sonar && ln -s ../docopt . && ln -s ../mplayer.py/mplayer . && ln -s ../py-sonic/libsonic . && cd ..
+$ sudo ln -s ~/src/sonar/sonar.py /usr/bin/sonar
 ```
 
 ## Usage
 ### NOTE: This software is nowhere near useful at this point.
 
-  sonar.py search (artists|albums|songs) SEARCH_STRING... [--limit LIMIT]
-  sonar.py random (albums|songs) [--limit LIMIT]
-  sonar.py shell
+This assumes that you have pulled this repo into `~/src/sonar`
 
----
+### Sonar Server
+At this point, you have to run the server in it's own terminal window (sure you can fork it and whatnot, but you are going to know whats going on with the server as it is likely to crash at any point in time. :))
+
+```
+Usage:
+    sonarserver.py
+```
+
+### Sonar Client
+```
+Usage:
+    sonar.py search [(artist|album|song) SEARCH_STRING...] [--limit LIMIT]
+    sonar.py random [album|song] [--limit LIMIT]
+    sonar.py last
+    sonar.py play [INDEX...]
+    sonar.py pause
+    sonar.py (playpause|pp)
+    sonar.py stop
+    sonar.py next
+    sonar.py (ff|rw) [TIMEDELTA]
+    sonar.py queue [show|clear|[[set|prepend|append] INDEX...]]
+    sonar.py status [--short]
+    sonar.py
+```
+
+## Known issues
+* I had to fork the py-sonic (python3 branch) and add a few methods on the Connection class in order to be able to list an artists albums and an albums songs. This does however not work properly. At this point, only searching and queueing songs works as expected.
+* Playing next song in the queue doesn't work.
+* I don't know if seeking (ff, rw) works properly.
 
 ## Roadmap
+* Coninuous play (the player plays the next song in the queue on finished playing a song).
+* Being able to skip to the next song in the queue.
+* Threading all the server calls in order to return quickly in the client.
+* Better server queue handling (keep queue but knowing which song is being played and thus being able to skip forward and backward in the queue. Also being able to remove songs from server queue).
+* Better (proper) logging for both the server and client. That is, cleaning up the stdout output to a minimum (ability to change that with --debug or --verbose) but writing to logs for trouble shooting.
+* Lazy starting of the server if not running when wanting to use it with the client.
+* Ability to list and queue playlists (and further down the road creating and deleting playlists as well as adding songs to and remove songs from playlists).
+* Implementing Subsonic Jukebox (ability to play music on the subsonic server rather than the client -- play the music on the good speakers at home).
 
-The following usage section acts as a implementation checklist. Any commands proceeded by a `# Not yet implemented` are...you guessed it: Not implemented yet.
-
-### Searching for music
-
-Searches return lists of 10 search results. This may be overridden with `-n int`.
-
-*Freetext search:*
-```bash
-# Not yet implemented
-sonar search "free text search string"
-# or sonar -S "free text search string"
-```
-
-*Artist search:*
-```bash
-# Not yet implemented
-sonar search artist "artist name"
-# or sonar -sa "artist name"
-```
-
-*Album search:*
-```bash
-# Not yet implemented
-sonar search album "album name"
-# or sonar -sl "album name"
-```
-
-*Track title:*
-```bash
-# Not yet implemented
-sonar search tracks "track title"
-# or sonar -st "track title"
-```
-
-*Limit the number of results returned*
-```bash
-# Not yet implemented
-sonar search tracks "track title" limit 10
-# or sonar -st "track title" -n 0  # return all results
-```
-
-### Listing music
-
-Listings return the full list of the listing. This may be overridden with `-n <int>`.
-
-*List artist's albums:*
-```bash
-# Not yet implemented
-sonar list artist "artist_ref"
-# or sonar -la "artist name"  # guesses one artist
-```
-
-*List artist's tracks:*
-```bash
-# Not yet implemented
-sonar list artist tracks "artist_ref"
-# or sonar -lat "artist name"  # guesses one artist
-```
-
-*List albums's tracks:*
-```bash
-# Not yet implemented
-sonar list album "album_ref"
-# or sonar -ll "album name"  # guesses one album
-```
-
-*List playlist's tracks:*
-```bash
-# Not yet implemented
-sonar list playlist "playlist_ref"
-# or sonar -lp "playlist name"  # guesses one playlist
-```
-
-*List random albums:*
-```bash
-# Not yet implemented
-sonar list random
-# or sonar -lr
-```
-
-*Limit the number of results returned:*
-```bash
-# Not yet implemented
-sonar -la "artist_ref" -t -n 10  # list artist tracks, limit to 10 results
-sonar -la "artist_name" -t -n 0  # guesses artist name, return all results
-sonar -lx -n 1  # list random albuls, limit to 1 result
-```
-
-### Playing music
-
-Playing plays songs. Duh.
-
-*Play artist:*
-```bash
-# Not yet implemented
-sonar play artist "artist_ref"
-# or sonar -pa  "artist name"  # guesses one artist
-```
-
-*Play albums:*
-```bash
-# Not yet implemented
-sonar play album "album_ref"
-# or sonar -pl "album name"  # huesses one album
-```
-
-*Play playlist:*
-```bash
-# Not yet implemented
-sonar play playlist "playlist_ref"
-# or sonar -pp "playlist name"  # guesses one playlist
-```
-
-### Controlling the player
-
-Controlling the currently playing queue.
-
-*Toggle play/pause currently playing queue:*
-```bash
-# Not yet implemented
-sonar play
-# or sonar -p
-```
-
-*Toggle play/pause currently playing queue:*
-```bash
-# Not yet implemented
-sonar stop
-# or sonar -S
-```
-
-*Play next track in currently playing queue:*
-```bash
-# Not yet implemented
-sonar next
-# or sonar -N
-```
-
-*play previous track in currently playing queue:*
-```bash
-# Not yet implemented
-sonar previous
-# or sonar prev
-# or sonar -P
-```
-
-*Clear currently playing queue:*
-```bash
-# Not yet implemented
-sonar clear
-# or sonar -C
-```
-
-*Toogle shuffle currently playing queue:*
-```bash
-# Not yet implemented
-sonar shuffle
-# or sonar -X
-```
-
-*Toggle repeat currently playing queue:*
-```bash
-# Not yet implemented
-sonar repeat
-# or sonar -R
-```
+## Long term roadmap
+* Fixing py-sonic for python3 and pull requesting it to crustymonkey.
