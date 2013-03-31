@@ -62,6 +62,19 @@ Usage:
     sonar.py
 ```
 
+## Cool features
+* Search for artist, albums, or songs.
+* Listing random albums or songs.
+* Limiting returned results at will.
+* Queue songs on server.
+* Play queue (using mplayer).
+* Pause player.
+* Play/Pause toggle.
+* Stop player.
+* Seek forward backward in currently playing song (with optional timedelta argument).
+* Showing player status (verbose or short)
+* Songs are cached for fast playback.
+
 ## Known issues
 * I had to fork the py-sonic (python3 branch) and add a few methods on the Connection class in order to be able to list an artists albums and an albums songs. This does however not work properly. At this point, only searching and queueing songs works as expected.
 * Playing next song in the queue doesn't work.
@@ -76,6 +89,7 @@ Usage:
 * Lazy starting of the server if not running when wanting to use it with the client.
 * Ability to list and queue playlists (and further down the road creating and deleting playlists as well as adding songs to and remove songs from playlists).
 * Implementing Subsonic Jukebox (ability to play music on the subsonic server rather than the client -- play the music on the good speakers at home).
+* Limiting song cache size in mb (server will automatically remove songs that were touched the longest time ago when the limit is reached).
 
 ## Long term roadmap
 * Fixing py-sonic for python3 and pull requesting it to crustymonkey.
