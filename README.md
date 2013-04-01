@@ -10,7 +10,7 @@ Simple Python3 CLI for Subsonic Media Server
 * MPlayer (http://www.mplayerhq.hu)
 * mplayer.py (https://github.com/baudm/mplayer.py.git)
 * Subsonic Media Server (http://www.subsonic.org)
-* py-sonic (https://github.com/n1ck3/py-sonic) (Note: python3 banch)
+* py-sonic (https://github.com/n1ck3/py-sonic) (Note: master-py3 banch)
 
 ## Installation
 
@@ -26,7 +26,7 @@ After having installed and configured `Subsonc` and `MPlayer`:
 $ mkdir ~/src && cd ~/src
 $ git pull https://github.com/docopt/docopt
 $ mplayer.py (https://github.com/baudm/mplayer.py.git)
-$ git pull https://github.com/n1ck3/py-sonic && cd py-sonic && git checkout python3 && cd ..
+$ git pull https://github.com/n1ck3/py-sonic && cd py-sonic && git checkout master-py3 && cd ..
 $ git pull https://github.com/n1ck3/sonar
 $ cd sonar && ln -s ../docopt . && ln -s ../mplayer.py/mplayer . && ln -s ../py-sonic/libsonic . && cd ..
 $ sudo ln -s ~/src/sonar/sonar.py /usr/bin/sonar
@@ -76,15 +76,17 @@ Usage:
 * Songs are cached for fast playback.
 
 ## Known issues
-* I had to fork the py-sonic (python3 branch) and add a few methods on the Connection class in order to be able to list an artists albums and an albums songs. This does however not work properly. At this point, only searching and queueing songs works as expected.
-* Playing next song in the queue doesn't work.
-* I don't know if seeking (ff, rw) works properly.
+* I had to fork the py-sonic (master-py3 branch) and run 2to3 (and tweak a few things) in order to make it play nice with python3. This does however not work properly. At this point, only searching and queueing songs works as expected.
+* ~~Playing next song in the queue doesn't work.~~ [FIXED]
+* ~~I don't know if seeking (ff, rw) works properly.~~ [PARTIALLY FIXED]. rw to a time_pos < 0 sets it to the beginning of song. ff to time_pos > song.length sets it to song.length-1 for now.
+* Coninuous play (the player plays the next song in the queue on finished playing a song).
+* Handle errors from server in client better. I.e. is server can't play queue index, let the user know.
 
 ## Roadmap
-* Coninuous play (the player plays the next song in the queue on finished playing a song).
-* Being able to skip to the next song in the queue.
+* ~~Being able to skip to the next song in the queue.~~ [FIXED]
 * Threading all the server calls in order to return quickly in the client.
-* Better server queue handling (keep queue but knowing which song is being played and thus being able to skip forward and backward in the queue. Also being able to remove songs from server queue).
+* ~~Better server queue handling (keep queue but knowing which song is being played and thus being able to skip forward and backward in the queue.~~ [FIXED]
+* Add ability to remove songs from server queue.
 * Better (proper) logging for both the server and client. That is, cleaning up the stdout output to a minimum (ability to change that with --debug or --verbose) but writing to logs for trouble shooting.
 * Lazy starting of the server if not running when wanting to use it with the client.
 * Ability to list and queue playlists (and further down the road creating and deleting playlists as well as adding songs to and remove songs from playlists).

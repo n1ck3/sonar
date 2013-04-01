@@ -5,7 +5,7 @@ import configparser
 import json
 from urllib.error import HTTPError
 
-import libsonic
+from libsonic.connection import Connection
 
 def pretty(data, indent=2):
     print(
@@ -67,7 +67,7 @@ class Subsonic(object):
         self.connection = self.connect()
 
     def connect(self):
-        connection = libsonic.Connection(
+        connection = Connection(
             self.config["subsonic"]["host"],
             self.config["subsonic"]["user"],
             self.config["subsonic"]["password"],
@@ -75,7 +75,8 @@ class Subsonic(object):
         )
         try:
             connection.getLicense()
-        except HTTPError:
+        except HTTPError as e:
+            print(e)
             print("\nCould not connect to server.")
             print("\nMake sure your confs are good.\n")
             sys.exit(0)

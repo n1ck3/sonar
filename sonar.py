@@ -7,12 +7,12 @@ Usage:
     sonar.py search [(artist|album|song) SEARCH_STRING...] [--limit LIMIT]
     sonar.py random [album|song] [--limit LIMIT]
     sonar.py last
-    sonar.py play [INDEX...]
+    sonar.py play [INDEX]
     sonar.py pause
     sonar.py (playpause|pp)
     sonar.py stop
-    sonar.py next
-    sonar.py (ff|rw) [TIMEDELTA]
+    sonar.py (prev|next)
+    sonar.py (rw|ff) [TIMEDELTA]
     sonar.py queue [show|clear|[[set|prepend|append] INDEX...]]
     sonar.py status [--short]
     sonar.py
@@ -31,7 +31,7 @@ Options:
 """
 
 __author__ = "Niclas Helbro <niclas.helbro@gmail.com>"
-__version__ = "Sonar Client 0.1.1"
+__version__ = "Sonar Client 0.1.2"
 
 from docopt import docopt
 
@@ -156,6 +156,7 @@ class SonarClient(object):
         if type(artists) == dict:
             artists = [artists]
 
+        print()
         idx = 0
         for artist in artists:
             self._print("%s: %s" % (
@@ -163,11 +164,13 @@ class SonarClient(object):
                 artist['name']
             ))
             idx += 1
+        print()
 
     def _print_albums(self, albums):
         if type(albums) == dict:
             albums = [albums]
 
+        print()
         idx = 0
         for album in albums:
             self._print("%s: %s (%s)" % (
@@ -176,11 +179,13 @@ class SonarClient(object):
                 album['artist']
             ))
             idx += 1
+        print()
 
     def _print_songs(self, songs):
         if type(songs) == dict:
             songs = [songs]
 
+        print()
         idx = 0
         for song in songs:
             self._print("%s: %s (%s) [ID: %s]" % (
@@ -190,6 +195,7 @@ class SonarClient(object):
                 song['id']
             ))
             idx += 1
+        print()
 
     def random(self, args):
         res = self.get_random(args)
@@ -284,8 +290,11 @@ class SonarClient(object):
             "operation": "play"
         }
 
-        if "INDEX" in args and len(args["INDEX"]) > 0:
-            request["data"] = self._build_server_data(args["INDEX"])
+        # print(args)
+
+        if "INDEX" in args and isinstance(args["INDEX"], list) and \
+                len(args["INDEX"]) > 0 and isinstance(args["INDEX"][0], int):
+            request["queue_index"] = args["INDEX"][0]
 
         self._socket_send(request)
 
@@ -304,6 +313,12 @@ class SonarClient(object):
     def stop(self):
         request = {
             "operation": "stop"
+        }
+        self._socket_send(request)
+
+    def previous_song(self):
+        request = {
+            "operation": "previous_song"
         }
         self._socket_send(request)
 
@@ -416,9 +431,14 @@ if __name__ == "__main__":
         client.pause()
     elif "stop" in args and args["stop"]:
         client.stop()
+    elif "prev" in args and args["prev"]:
+        client.previous_song()
     elif "next" in args and args["next"]:
         client.next_song()
-    elif "ff" in args and args["ff"] or "rw" in args and args["rw"]:
+    elif "rw" in args and args["rw"]:
+        args["TIMEDELTA"] = -args["TIMEDELTA"]
+        client.seek(args)
+    elif "ff" in args and args["ff"]:
         client.seek(args)
     elif "queue" in args and args["queue"]:
         if "show" in args and args["show"]:
