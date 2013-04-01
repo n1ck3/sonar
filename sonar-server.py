@@ -245,10 +245,6 @@ class SonarServer(object):
         if not isinstance(self.current_song, int):
             return None
 
-        print()
-        print(self.current_song)
-        print()
-
         ret = {
             "song": self.queue[self.current_song],
             "playing": self.player.playing(),
