@@ -24,10 +24,11 @@ from docopt import docopt
 
 import os
 import sys
-from time import sleep
+import time
 import socket
 import json
 import threading
+from queue import Queue
 
 from libsonar import Subsonic
 from libsonar import read_config
@@ -36,8 +37,10 @@ from libsonar import pretty
 
 from mplayer import Player as MPlayer
 
+msg_queue = Queue(1)
+
 class SonarServer(object):
-    def __init__(self):
+    def __init__(self, msg_queue):
         self.config = read_config()
 
         try:
@@ -45,6 +48,7 @@ class SonarServer(object):
             self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
             self.socket.bind(("", int(self.config['server']['port'])))
             self.socket.listen(1)
+            self.socket.setblocking(0)
             self.socket_is_open = True
         except OSError as e:
             print("\nCould not start server socket.")
@@ -53,16 +57,18 @@ class SonarServer(object):
 
         self.cache_dir = os.path.join(self.config["sonar"]["tmp_dir"], "cache")
 
+
         subsonic = Subsonic()
         self.subsonic = subsonic.connection
-        self.player = PlayerThread(subsonic)
+        self.player = PlayerThread(subsonic, msg_queue)
 
         self.current_song = None
         self.queue = []
 
+        self.msg_queue = msg_queue
 
     def _start_server(self):
-        debug("Ready for connection")
+        debug("Starting server")
 
         operations = (
             "currently_playing", "play", "pause", "playpause", "stop",
@@ -71,18 +77,33 @@ class SonarServer(object):
         )
 
         while self.socket_is_open:
-            conn, addr = self.socket.accept()
-            debug("Connected by %s (pid: %s)" % addr)
-            while True:
+            # Check if the queue has something for us.
+            if not self.msg_queue.empty():
+                msg = self.msg_queue.get()
+                # Figure out what to do with the queue message.
+                if msg == "EOF":
+                    # Done playing a file? Play the next in the queue.
+                    self.play_next_song()
+
+            try:
+                # Try to get connection and address of client.
+                conn, addr = self.socket.accept()
+            except Exception as e:
+                # Client has not sent a request. Set connection to none so
+                # that we can avoid trying to handle the request later.
+                conn = None
+
+            if conn:
+                # There is a connection made by the client in this iteration!
+                debug("Connected by %s (pid: %s)" % addr)
                 data = conn.recv(102400)
 
-                if not data:
-                    break
-
                 try:
+                    # Try to handle the request.
                     data = str(data.decode("utf-8"))
                     debug("Got request: %s" % data)
                     request = json.loads(data)
+
                     if "operation" in request:
                         if request['operation'] in operations:
                             # Success. Carry out the operation.
@@ -98,11 +119,13 @@ class SonarServer(object):
                                 if "queue_index" in request:
                                     success, msg = self.play(queue_index=int(request["queue_index"]))
                                     if not success:
+                                        ret["code"] = "ERROR"
                                         ret["message"] = msg
 
                                 else:
                                     success, msg = self.play()
                                     if not success:
+                                        ret["code"] = "ERROR"
                                         ret["message"] = msg
 
                             elif operation in ["pause"]:
@@ -136,27 +159,34 @@ class SonarServer(object):
                                 ret['queue'] = self.queue
 
                         else:
+                            # The request operation was not found in the list of
+                            # permitted operations. Go bananas.
                             raise Exception("Operation not permitted.")
 
                     else:
+                        # "operation" not in request. You know the drill.
                         raise Exception("No operation given.")
 
+
+                    # Send the response to the client.
+                    response = json.dumps(ret)
+                    debug("Returning response: %s" % response)
+                    conn.sendall(response.encode("utf-8"))
+
+                    conn.close()
+
                 except Exception as e:
+                    # Exception handler for request handler logic.
                     print(e)
                     ret = {
                         "code": "ERROR",
                         "message": str(e)
                     }
-
-                    conn.close()
                     raise
 
-                response = json.dumps(ret)
-                debug("Returning response: %s" % response)
-                conn.sendall(response.encode("utf-8"))
-
-            conn.close()
-            sleep(0.1)
+            else:
+                # Wait for a little before starting to listen to socket connection again
+                time.sleep(0.250)
 
     def _stop_server(self):
         # Stop players and threads and whatnot
@@ -378,13 +408,24 @@ class SonarServer(object):
         self.queue += self._build_queue(data)
 
 class PlayerThread(threading.Thread):
-    def __init__(self, subsonic):
+    def __init__(self, subsonic, msg_queue):
         self.config = read_config()
         self.cache_dir = os.path.join(self.config["sonar"]["tmp_dir"], "cache")
+
         subsonic = Subsonic()
         self.subsonic = subsonic.connection
         self.mplayer = MPlayer(args=("-really-quiet", "-msglevel", "global=6"))
+        self.mplayer.stdout.connect(self._handle_data)
+
+        self.msg_queue = msg_queue
+
         super(PlayerThread, self).__init__()
+
+    def _handle_data(self, data):
+        # Handle the stdout stream coming back from MPlayer.
+        if data.startswith('EOF code:'):
+            # So the file has finished playing? Let the server know!
+            self.msg_queue.put("EOF")
 
     def _get_stream(self, song_id):
         return self.subsonic.download(song_id)
@@ -397,7 +438,7 @@ class PlayerThread(threading.Thread):
         }
 
     def play(self, song_id):
-        song_file = os.path.join(self.cache_dir, "%s.mp3" % song_id)
+        song_file = os.path.join(self.cache_dir, "%s" % song_id)
 
         # If not already cached. Download it.
         if not os.path.exists(song_file):
@@ -410,7 +451,7 @@ class PlayerThread(threading.Thread):
 
         self.mplayer.stop()
         self.mplayer.loadfile(song_file)
-        sleep(0.05)
+        time.sleep(0.05)
         self.mplayer.pause()
 
         # TODO: check every second if is alive. Otherwise play next.
@@ -424,7 +465,7 @@ class PlayerThread(threading.Thread):
         # return what would be expected.
         playing = False
         time1 = self.mplayer.time_pos
-        sleep(0.05)
+        time.sleep(0.05)
         time2 = self.mplayer.time_pos
         if time1 != time2:
             playing = True
@@ -455,7 +496,7 @@ class PlayerThread(threading.Thread):
 if __name__ == "__main__":
     args = docopt(__doc__, version=__version__)
 
-    server = SonarServer()
+    server = SonarServer(msg_queue)
     server._start_server()
 
     # if "search" in args and args["search"]:

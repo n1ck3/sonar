@@ -61,12 +61,14 @@ class SonarClient(object):
         ))
 
         request = json.dumps(data)
-        # debug("Sending request: %s" % request)
         self.socket.sendall(request.encode("utf-8"))
 
         response = self.socket.recv(102400)
         response = response.decode("utf-8")
-        # debug("Received response: %s" % repr(response))
+
+        # debug(response)
+        # if "code" not in response or response["code"] != "OK" and "msg" in response:
+        #     debug(response["msg"])
 
         self.socket.close()
         return json.loads(response)
