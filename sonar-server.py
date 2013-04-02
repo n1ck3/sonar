@@ -1,24 +1,24 @@
 #!/usr/bin/env python3
 
 """
-sonar.
+Sonar Server
 
 Usage:
-    sonarserver.py
+    sonar-server.py
 
-    sonarserver.py (-h | --help)
-    sonarserver.py (-v | --verbose)
-    sonarserver.py --version
+    sonar-server.py (-h | --help)
+    sonar-server.py (-v | --verbose)
+    sonar-server.py --version
 
 Options:
     -h --help                   Shows this screen
-    -v --verbose                Verbose output (i.e. debug)
+    -v --verbose                Verbose output (i.e. show debug)
     --version                   Show version
 
 """
 
 __author__ = "Niclas Helbro <niclas.helbro@gmail.com>"
-__version__ = "Sonar Server 0.1.2"
+__version__ = "Sonar Server 0.1.3"
 
 from docopt import docopt
 
@@ -65,15 +65,29 @@ class SonarServer(object):
         self.current_song = None
         self.queue = []
 
+        self.shuffle = False
+        self.repeat = False
+
         self.msg_queue = msg_queue
 
     def _start_server(self):
         debug("Starting server")
 
         operations = (
-            "currently_playing", "play", "pause", "playpause", "stop",
-            "previous_song", "next_song", "seek", "set_queue", "prepend_queue",
-            "append_queue", "show_queue"
+            "status",
+            "play",
+            "pause",
+            "playpause",
+            "stop",
+            "previous_song",
+            "next_song",
+            "seek",
+            "repeat",
+            "shuffle",
+            "set_queue",
+            "prepend_queue",
+            "append_queue",
+            "show_queue"
         )
 
         while self.socket_is_open:
@@ -112,8 +126,8 @@ class SonarServer(object):
                             }
 
                             operation = request["operation"]
-                            if operation == "currently_playing":
-                                ret['current_song'] = self.currently_playing()
+                            if operation == "status":
+                                ret['current_song'] = self.status()
 
                             elif operation == "play":
                                 if "queue_index" in request:
@@ -143,7 +157,19 @@ class SonarServer(object):
                             elif operation == "previous_song":
                                 self.play_previous_song()
 
-                            elif operation == "seek":
+                            elif operation == "shuffle":
+                                value = None
+                                if "value" in request:
+                                    value = request["value"]
+                                self.set_shuffle(value=value)
+
+                            elif operation == "repeat":
+                                value = None
+                                if "value" in request:
+                                    value = request["value"]
+                                self.set_repeat(value=value)
+
+                            elif operation == "seek" and "timedelta" in request:
                                 self.seek(request["timedelta"])
 
                             elif operation == "set_queue" and "data" in request:
@@ -271,14 +297,16 @@ class SonarServer(object):
     def _get_next_song(self):
         return self._get_song_from_queue(self.current_song+1)
 
-    def currently_playing(self):
+    def status(self):
         if not isinstance(self.current_song, int):
             return None
 
         ret = {
             "song": self.queue[self.current_song],
             "playing": self.player.playing(),
-            "progress": self.player.progress()
+            "progress": self.player.progress(),
+            "shuffle": self.shuffle,
+            "repeat": self.repeat
         }
 
         return ret
@@ -359,9 +387,15 @@ class SonarServer(object):
         if self.queue and isinstance(self.current_song, int):
             queue_index = self.current_song-1
             if queue_index < 0:
-                queue_index = len(self.queue)-1
+                if self.repeat:
+                    queue_index = len(self.queue)-1
+                else:
+                    self.stop()
             elif queue_index > len(self.queue)-1:
-                queue_index = 0
+                if self.repeat:
+                    queue_index = 0
+                else:
+                    self.stop()
 
             self._play_song_by_queue_index(queue_index=queue_index)
             return True, ""
@@ -372,9 +406,15 @@ class SonarServer(object):
             queue_index = self.current_song+1
             if queue_index and isinstance(queue_index, int):
                 if queue_index < 0:
-                    queue_index = len(self.queue)-1
+                    if self.repeat:
+                        queue_index = len(self.queue)-1
+                    else:
+                        self.stop()
                 elif queue_index > len(self.queue)-1:
-                    queue_index = 0
+                    if self.repeat:
+                        queue_index = 0
+                    else:
+                        self.stop()
 
             self._play_song_by_queue_index(queue_index=queue_index)
             return True, ""
@@ -391,6 +431,18 @@ class SonarServer(object):
         self.player.stop()
         self.current_song = None
         self.queue = []
+
+    def set_shuffle(self, value):
+        if not value:
+            self.shuffle = not self.shuffle
+        else:
+            self.shuffle = value
+
+    def set_repeat(self, value):
+        if not value:
+            self.repeat = not self.repeat
+        else:
+            self.repeat = value
 
     def seek(self, timedelta):
         if self.player.filename():
@@ -431,11 +483,14 @@ class PlayerThread(threading.Thread):
         return self.subsonic.download(song_id)
 
     def progress(self):
-        return {
-            "percent": self.mplayer.percent_pos,
-            "time": int(self.mplayer.time_pos),
-            "length": int(self.mplayer.length),
-        }
+        ret = None
+        if self.mplayer.time_pos:
+            ret = {
+                "percent": self.mplayer.percent_pos,
+                "time": int(self.mplayer.time_pos),
+                "length": int(self.mplayer.length),
+            }
+        return ret
 
     def play(self, song_id):
         song_file = os.path.join(self.cache_dir, "%s" % song_id)
@@ -453,12 +508,6 @@ class PlayerThread(threading.Thread):
         self.mplayer.loadfile(song_file)
         time.sleep(0.05)
         self.mplayer.pause()
-
-        # TODO: check every second if is alive. Otherwise play next.
-        # while self.mplayer.time_pos != None:
-        #     print(int(self.mplayer.time_pos))
-        #     sleep(1)
-        # self.mplayer.stop()
 
     def playing(self):
         # A little hacky but MPlayer().paused does not

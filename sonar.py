@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
 """
-sonar.
+Sonar Client
 
 Usage:
     sonar.py search [(artist|album|song) SEARCH_STRING...] [--limit LIMIT]
@@ -13,9 +13,9 @@ Usage:
     sonar.py stop
     sonar.py (prev|next)
     sonar.py (rw|ff) [TIMEDELTA]
+    sonar.py (shuffle|repeat) [on|off]
     sonar.py queue [show|clear|[[set|prepend|append] INDEX...]]
-    sonar.py status [--short]
-    sonar.py
+    sonar.py [status] [--short]
 
     sonar.py (-h | --help)
     sonar.py (-v | --verbose)
@@ -25,13 +25,13 @@ Options:
     -n LIMIT, --limit LIMIT     Limit results [default: 10]
     -h --help                   Shows this screen
     -s --short                  One line output
-    -v --verbose                Verbose output (i.e. debug)
+    -v --verbose                Verbose output (i.e. show debug)
     --version                   Show version
 
 """
 
 __author__ = "Niclas Helbro <niclas.helbro@gmail.com>"
-__version__ = "Sonar Client 0.1.2"
+__version__ = "Sonar Client 0.1.3"
 
 from docopt import docopt
 
@@ -65,13 +65,18 @@ class SonarClient(object):
 
         response = self.socket.recv(102400)
         response = response.decode("utf-8")
+        # print(type(response))
+        # jstring = str(response)
 
         # debug(response)
-        # if "code" not in response or response["code"] != "OK" and "msg" in response:
-        #     debug(response["msg"])
+        # debug(response["code"])
+        # if "msg" in response:
+        response_data = json.loads(response)
+        if "message" in response_data:
+            print("\n%s\n" % response_data["message"])
 
         self.socket.close()
-        return json.loads(response)
+        return response_data
 
     def _format_results(self, results):
         for kind in ["artist", "album", "song"]:
@@ -254,13 +259,13 @@ class SonarClient(object):
 
         return self._format_results(ret)
 
-    def currently_playing(self, args):
+    def status(self, args):
         request = {
-            "operation": "currently_playing"
+            "operation": "status"
         }
         result = self._socket_send(request)
 
-        if "--short" in args:
+        if "--short" in args and args["--short"]:
             if "current_song" in result and result["current_song"]:
                 ct = result["current_song"]
                 currently_playing_string = "%s (%s%%)" % (
@@ -282,6 +287,11 @@ class SonarClient(object):
 
                 if "playing" in ct and ct["playing"] == False:
                     progress_string += " [Paused]"
+
+                if "shuffle" in ct and ct["shuffle"]:
+                    progress_string += " [Shuffle]"
+                elif "repeat" in ct and ct["repeat"]:
+                    progress_string += " [Repeat]"
 
                 print("%s\n" % progress_string)
             else:
@@ -328,6 +338,28 @@ class SonarClient(object):
         request = {
             "operation": "next_song"
         }
+        self._socket_send(request)
+
+    def shuffle(self, args):
+        request = {
+            "operation": "shuffle"
+        }
+        if "on" in args and args["on"]:
+            request["value"] = True
+        elif "off" in args and args["off"]:
+            request["value"] = False
+
+        self._socket_send(request)
+
+    def repeat(self, args):
+        request = {
+            "operation": "repeat"
+        }
+        if "on" in args and args["on"]:
+            request["value"] = True
+        elif "off" in args or args["off"]:
+            request["value"] = False
+
         self._socket_send(request)
 
     def seek(self, args):
@@ -437,6 +469,10 @@ if __name__ == "__main__":
         client.previous_song()
     elif "next" in args and args["next"]:
         client.next_song()
+    elif "shuffle" in args and args["shuffle"]:
+        client.shuffle(args)
+    elif "repeat" in args and args["repeat"]:
+        client.repeat(args)
     elif "rw" in args and args["rw"]:
         args["TIMEDELTA"] = -args["TIMEDELTA"]
         client.seek(args)
@@ -458,4 +494,4 @@ if __name__ == "__main__":
     elif "status" in args and args["status"] or True:
         # Assume the user wants to know the status of what
         # is being played at the moment.
-        client.currently_playing(args)
+        client.status(args)
