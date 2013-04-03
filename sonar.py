@@ -66,12 +66,7 @@ class SonarClient(object):
 
         response = self.socket.recv(102400)
         response = response.decode("utf-8")
-        # print(type(response))
-        # jstring = str(response)
 
-        # debug(response)
-        # debug(response["code"])
-        # if "msg" in response:
         response_data = json.loads(response)
         if "message" in response_data:
             print("\n%s\n" % response_data["message"])
@@ -296,12 +291,11 @@ class SonarClient(object):
 
                 if "progress" in ct and ct["progress"]:
                     currently_playing_string += " (%s%%)" % (
-                        ct["song"]["title"],
                         ct["progress"]["percent"]
                     )
 
-                if "playing" in ct and ct["playing"] == False:
-                    currently_playing_string += " [Paused]"
+                if "player_state" in ct:
+                    currently_playing_string += " [%s]" % ct["player_state"]
 
                 print(currently_playing_string)
         else:
@@ -331,6 +325,7 @@ class SonarClient(object):
                     progress_list.append("[Repeat]")
 
                 print(currently_playing_string)
+
                 if progress_list:
                     print("%s\n" % " ".join(progress_list))
                 else:
