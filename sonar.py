@@ -6,7 +6,7 @@ Sonar Client
 Usage:
     sonar.py search [(artist|album|song) SEARCH_STRING...] [--limit LIMIT]
     sonar.py random [album|song] [--limit LIMIT]
-    sonar.py last
+    sonar.py (last|list)
     sonar.py play [INDEX]
     sonar.py pause
     sonar.py (playpause|pp)
@@ -14,7 +14,7 @@ Usage:
     sonar.py (prev|next)
     sonar.py (rw|ff) [TIMEDELTA]
     sonar.py (shuffle|repeat) [on|off]
-    sonar.py queue [show|clear|[[set|prepend|append] INDEX...]]
+    sonar.py queue [show|clear|[[set|(prepend|first)|(append|add|last)] INDEX...]]
     sonar.py [status] [--short]
 
     sonar.py (-h | --help)
@@ -110,17 +110,25 @@ class SonarClient(object):
             print("\nNo result list found... Make a search first.\n")
             sys.exit(0)
 
-        if len(idxs) == 0:
-            idxs = range(len(res_list))
-
         if "artist" in res_list and len(res_list["artist"]) > 0:
+            if isinstance(idxs, list) and len(idxs) == 1 and idxs[0] == -1:
+                idxs = []
+            elif len(idxs[idxs]) == 0:
+                idxs = range(0, len(res_list["artist"]))
+
             for idx in idxs:
                 artist = res_list["artist"][idx]
                 data["artist"].append({
                     "id": artist["id"],
                     "name": artist["name"]
                 })
+
         if "album" in res_list and len(res_list["album"]) > 0:
+            if isinstance(idxs, list) and len(idxs) == 1 and idxs[0] == -1:
+                idxs = []
+            elif len(idxs) == 0:
+                idxs = range(0, len(res_list["album"]))
+
             for idx in idxs:
                 album = res_list["album"][idx]
                 data["album"].append({
@@ -128,7 +136,13 @@ class SonarClient(object):
                     "album": album["album"],
                     "artist": album["artist"]
                 })
+
         if "song" in res_list and len(res_list["song"]) > 0:
+            if isinstance(idxs, list) and len(idxs) == 1 and idxs[0] == -1:
+                idxs = []
+            elif len(idxs) == 0:
+                idxs = range(0, len(res_list["song"]))
+
             for idx in idxs:
                 song = res_list["song"][idx]
                 data["song"].append({
@@ -464,7 +478,8 @@ if __name__ == "__main__":
         client.search(args)
     elif "random" in args and args["random"]:
         client.random(args)
-    elif "last" in args and args["last"]:
+    elif "last" in args and args["last"] or \
+            "list" in args and args["list"]:
         client._print_results()
     elif "play" in args and args["play"]:
         client.play(args)
@@ -488,18 +503,21 @@ if __name__ == "__main__":
     elif "ff" in args and args["ff"]:
         client.seek(args)
     elif "queue" in args and args["queue"]:
-        if "show" in args and args["show"]:
-            client.show_queue()
+        if "append" in args and args["append"] or \
+                "add" in args and args["add"] or \
+                "last" in args and args["last"]:
+            client.append_queue(args)
         elif "clear" in args and args["clear"]:
-            args["INDEX"] = []  # Make sure we are setting queue to empty
+            args["INDEX"] = [-1]  # Make sure we are setting queue to empty
             client.set_queue(args)
         elif "set" in args and args["set"]:
             client.set_queue(args)
-        elif "prepend" in args and args["set"]:
+        elif "prepend" in args and args["set"] or \
+                "first" in args and args["first"]:
             client.prepend_queue(args)
-        elif "append" in args and args["append"] or True:
-            # Default to append to queue
-            client.append_queue(args)
+        elif "show" in args and args["show"] or True:
+            # Default to show queue
+            client.show_queue()
     elif "status" in args and args["status"] or True:
         # Assume the user wants to know the status of what
         # is being played at the moment.

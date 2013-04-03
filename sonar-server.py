@@ -91,7 +91,6 @@ class SonarServer(object):
         )
 
         while self.socket_is_open:
-            print("WHILE")
             # Check if the queue has something for us.
             if not self.msg_queue.empty():
                 msg = self.msg_queue.get()
@@ -109,7 +108,6 @@ class SonarServer(object):
                 conn = None
 
             if conn:
-                print("Conn")
                 # There is a connection made by the client in this iteration!
                 debug("Connected by %s (pid: %s)" % addr)
                 data = conn.recv(102400)
@@ -362,9 +360,7 @@ class SonarServer(object):
         return ret
 
     def play(self, queue_index=None):
-        print("in play")
         if isinstance(queue_index, int):
-            print("is int: %s" % queue_index)
             return self._play_song_by_queue_index(queue_index=queue_index)
 
         elif self.player.playing():
@@ -490,7 +486,7 @@ class PlayerThread(threading.Thread):
             self.msg_queue.put("EOF")
 
     def _get_stream(self, song_id):
-        return self.subsonic.download(song_id)
+        return self.subsonic.stream(song_id)
 
     def progress(self):
         ret = None
@@ -504,7 +500,7 @@ class PlayerThread(threading.Thread):
 
     def play(self, song_id):
         print("play")
-        song_file = os.path.join(self.cache_dir, "%s" % song_id)
+        song_file = os.path.join(self.cache_dir, "%s.mp3" % song_id)
 
         # If not already cached. Download it.
         if not os.path.exists(song_file):
