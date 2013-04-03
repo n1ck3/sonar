@@ -75,23 +75,23 @@ Usage:
 * Showing player status (verbose or short)
 * Songs are cached for fast playback.
 
-## Known issues
-* I had to fork the py-sonic (master-py3 branch) and run 2to3 (and tweak a few things) in order to make it play nice with python3. This does however not work properly. At this point, only searching and queueing songs works as expected.
-* ~~Playing next song in the queue doesn't work.~~ [FIXED]
+## ~~Known issues~~ Check out the issues
+* ~~I had to fork the py-sonic (master-py3 branch) and run 2to3 (and tweak a few things) in order to make it play nice with python3. This does however not work properly. At this point, only searching and queueing songs works as expected.~~ [Moved to Issues: Issue 3]
+* ~~Playing next song in the queue doesn't work.~~ [Moved to Issues: Issue 2]
 * ~~I don't know if seeking (ff, rw) works properly.~~ [PARTIALLY FIXED]. rw to a time_pos < 0 sets it to the beginning of song. ff to time_pos > song.length sets it to song.length-1 for now.
-* Coninuous play (the player plays the next song in the queue on finished playing a song).
-* Handle errors from server in client better. I.e. is server can't play queue index, let the user know.
+* ~~Coninuous play (the player plays the next song in the queue on finished playing a song).~~ [Moved to Issues: Issue 7]
+* ~~Handle errors from server in client better. I.e. is server can't play queue index, let the user know.~~ [Moved to Issues: Issue 8]
 
 ## Roadmap
 * ~~Being able to skip to the next song in the queue.~~ [FIXED]
-* Threading all the server calls in order to return quickly in the client.
+* ~~Threading all the server calls in order to return quickly in the client.~~ [Moved to Issues: Issue 6]
 * ~~Better server queue handling (keep queue but knowing which song is being played and thus being able to skip forward and backward in the queue.~~ [FIXED]
-* Add ability to remove songs from server queue.
-* Better (proper) logging for both the server and client. That is, cleaning up the stdout output to a minimum (ability to change that with --debug or --verbose) but writing to logs for trouble shooting.
-* Lazy starting of the server if not running when wanting to use it with the client.
-* Ability to list and queue playlists (and further down the road creating and deleting playlists as well as adding songs to and remove songs from playlists).
-* Implementing Subsonic Jukebox (ability to play music on the subsonic server rather than the client -- play the music on the good speakers at home).
-* Limiting song cache size in mb (server will automatically remove songs that were touched the longest time ago when the limit is reached).
+* ~~Add ability to remove songs from server queue.~~ [Moved to Issues: Issue 1]
+* ~~Better (proper) logging for both the server and client. That is, cleaning up the stdout output to a minimum (ability to change that with --debug or --verbose) but writing to logs for trouble shooting.~~ [Moved to Issues: Issue 4]
+* ~~Lazy starting of the server if not running when wanting to use it with the client.~~ [Moved to Issues: Issue 5]
+* ~~Ability to list and queue playlists (and further down the road creating and deleting playlists as well as adding songs to and remove songs from playlists).~~ [Moved to Issues: Issue 1]
+* ~~Implementing Subsonic Jukebox (ability to play music on the subsonic server rather than the client -- play the music on the good speakers at home).~~ [Moved to Issues: Issue 9]
+* ~~Limiting song cache size in mb (server will automatically remove songs that were touched the longest time ago when the limit is reached).~~ [Moved to Issues: Issue 10]
 
 ## Long term roadmap
-* Fixing py-sonic for python3 and pull requesting it to crustymonkey.
+* ~~Fixing py-sonic for python3 and pull requesting it to crustymonkey.~~ [Moved to Issues: Issue 6]
