@@ -268,10 +268,14 @@ class SonarClient(object):
         if "--short" in args and args["--short"]:
             if "current_song" in result and result["current_song"]:
                 ct = result["current_song"]
-                currently_playing_string = "%s (%s%%)" % (
-                    ct["song"]["title"],
-                    ct["progress"]["percent"]
-                )
+
+                currently_playing_string = ct["song"]["title"]
+
+                if "progress" in ct and ct["progress"]:
+                    currently_playing_string += " (%s%%)" % (
+                        ct["song"]["title"],
+                        ct["progress"]["percent"]
+                    )
 
                 if "playing" in ct and ct["playing"] == False:
                     currently_playing_string += " [Paused]"
@@ -280,21 +284,26 @@ class SonarClient(object):
         else:
             if "current_song" in result and result["current_song"]:
                 ct = result["current_song"]
-                print("\nCurrently playing: %s" % ct["song"]["title"])
 
-                if "progress" in ct:
-                    progress_string = "Progress: %(time)s / %(length)s (%(percent)s%%)" % ct["progress"]
+                currently_playing_string = "\nCurrently playing: %s (%s)" % (ct["song"]["title"], ct["song"]["artist"])
+
+                progress_list = []
+                if "progress" in ct and ct["progress"]:
+                    progress_list.append("Progress: %(time)s / %(length)s (%(percent)s%%)" % ct["progress"])
 
                 if "playing" in ct and ct["playing"] == False:
-                    progress_string += " [Paused]"
+                    progress_list.append("[Paused]")
 
                 if "shuffle" in ct and ct["shuffle"]:
-                    progress_string += " [Shuffle]"
+                    progress_list.append("[Shuffle]")
                 elif "repeat" in ct and ct["repeat"]:
-                    progress_string += " [Repeat]"
+                    progress_list.append("[Repeat]")
 
-                print("%s\n" % progress_string)
+                print(currently_playing_string)
+                if progress_list:
+                    print("%s\n" % " ".join(progress_list))
             else:
+                # Only print "Nothing is playing" if we want verbose output
                 print("\nNothing is playing...\n")
 
     def play(self, args):

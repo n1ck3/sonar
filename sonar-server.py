@@ -91,6 +91,7 @@ class SonarServer(object):
         )
 
         while self.socket_is_open:
+            print("WHILE")
             # Check if the queue has something for us.
             if not self.msg_queue.empty():
                 msg = self.msg_queue.get()
@@ -108,6 +109,7 @@ class SonarServer(object):
                 conn = None
 
             if conn:
+                print("Conn")
                 # There is a connection made by the client in this iteration!
                 debug("Connected by %s (pid: %s)" % addr)
                 data = conn.recv(102400)
@@ -212,7 +214,7 @@ class SonarServer(object):
 
             else:
                 # Wait for a little before starting to listen to socket connection again
-                time.sleep(0.250)
+                time.sleep(1)
 
     def _stop_server(self):
         # Stop players and threads and whatnot
@@ -297,20 +299,6 @@ class SonarServer(object):
     def _get_next_song(self):
         return self._get_song_from_queue(self.current_song+1)
 
-    def status(self):
-        if not isinstance(self.current_song, int):
-            return None
-
-        ret = {
-            "song": self.queue[self.current_song],
-            "playing": self.player.playing(),
-            "progress": self.player.progress(),
-            "shuffle": self.shuffle,
-            "repeat": self.repeat
-        }
-
-        return ret
-
     def _play_song_by_song(self, song=None):
         # No usecase yet.
         if not self.queue:
@@ -359,8 +347,24 @@ class SonarServer(object):
 
         return False, "There is no song in the queue with the song_id: %s" % song_id
 
+    def status(self):
+        if not isinstance(self.current_song, int):
+            return None
+
+        ret = {
+            "song": self.queue[self.current_song],
+            "playing": self.player.playing(),
+            "progress": self.player.progress(),
+            "shuffle": self.shuffle,
+            "repeat": self.repeat
+        }
+
+        return ret
+
     def play(self, queue_index=None):
+        print("in play")
         if isinstance(queue_index, int):
+            print("is int: %s" % queue_index)
             return self._play_song_by_queue_index(queue_index=queue_index)
 
         elif self.player.playing():
@@ -386,39 +390,45 @@ class SonarServer(object):
     def play_previous_song(self):
         if self.queue and isinstance(self.current_song, int):
             queue_index = self.current_song-1
-            if queue_index < 0:
-                if self.repeat:
-                    queue_index = len(self.queue)-1
-                else:
-                    self.stop()
-            elif queue_index > len(self.queue)-1:
-                if self.repeat:
-                    queue_index = 0
-                else:
-                    self.stop()
-
-            self._play_song_by_queue_index(queue_index=queue_index)
-            return True, ""
-        return False, "Could not play previous song."
-
-    def play_next_song(self):
-        if self.queue and isinstance(self.current_song, int):
-            queue_index = self.current_song+1
             if queue_index and isinstance(queue_index, int):
                 if queue_index < 0:
                     if self.repeat:
                         queue_index = len(self.queue)-1
                     else:
-                        self.stop()
-                elif queue_index > len(self.queue)-1:
-                    if self.repeat:
                         queue_index = 0
-                    else:
+                    self._play_song_by_queue_index(queue_index=queue_index)
+                    return True, ""
+                elif queue_index > len(self.queue)-1:
+                    queue_index = 0
+                    if not self.repeat:
                         self.stop()
+                        return False, "Could not play next song."
+                    self._play_song_by_queue_index(queue_index=queue_index)
+                    return True, ""
 
-            self._play_song_by_queue_index(queue_index=queue_index)
-            return True, ""
-        return False, "Could not play next song."
+    def play_next_song(self):
+        if self.queue and isinstance(self.current_song, int):
+            queue_index = self.current_song+1
+            print(queue_index)
+            if queue_index and isinstance(queue_index, int):
+                print("in hehe")
+                print(len(self.queue)-1)
+
+                if queue_index < 0:
+                    print("<0")
+                    if self.repeat:
+                        queue_index = len(self.queue)-1
+                    else:
+                        queue_index = 0
+
+                elif queue_index > len(self.queue)-1:
+                    print("<len")
+                    queue_index = 0
+                    if not self.repeat:
+                        self.stop()
+                        return False, "Could not play next song."
+                self._play_song_by_queue_index(queue_index=queue_index)
+                return True, ""
 
     def pause(self):
         if self.player.playing():
@@ -429,8 +439,8 @@ class SonarServer(object):
 
     def stop(self):
         self.player.stop()
-        self.current_song = None
-        self.queue = []
+        # self.current_song = None
+        # self.queue = []
 
     def set_shuffle(self, value):
         if not value:
@@ -493,6 +503,7 @@ class PlayerThread(threading.Thread):
         return ret
 
     def play(self, song_id):
+        print("play")
         song_file = os.path.join(self.cache_dir, "%s" % song_id)
 
         # If not already cached. Download it.
@@ -504,7 +515,11 @@ class PlayerThread(threading.Thread):
             f.write(stream.read())
             f.close()
 
+        print("song file:")
+        print(song_file)
+
         self.mplayer.stop()
+        time.sleep(0.05)
         self.mplayer.loadfile(song_file)
         time.sleep(0.05)
         self.mplayer.pause()
@@ -522,6 +537,7 @@ class PlayerThread(threading.Thread):
         return playing
 
     def playpause(self):
+        print("playpause")
         self.mplayer.pause()
 
     def stop(self):
