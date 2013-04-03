@@ -13,8 +13,8 @@ Usage:
     sonar.py stop
     sonar.py (prev|next)
     sonar.py (rw|ff) [TIMEDELTA]
-    sonar.py (shuffle|repeat) [on|off]
-    sonar.py queue [show|clear|[[set|(prepend|first)|(append|add|last)] INDEX...]]
+    sonar.py repeat [on|off]
+    sonar.py queue [show|shuffle|[[set|(prepend|first)|(append|add|last)|(remove|clear)] INDEX...]]
     sonar.py [status] [--short]
 
     sonar.py (-h | --help)
@@ -39,6 +39,7 @@ import os
 import sys
 import socket
 import json
+import datetime
 from html.parser import HTMLParser
 
 from libsonar import Subsonic
@@ -218,6 +219,10 @@ class SonarClient(object):
             idx += 1
         print()
 
+    def _format_time(self, secs):
+        if isinstance(secs, int):
+            return datetime.timedelta(seconds=secs)
+
     def random(self, args):
         res = self.get_random(args)
         self._cache_results(res)
@@ -273,6 +278,10 @@ class SonarClient(object):
 
         return self._format_results(ret)
 
+    def _format_time(self, secs):
+        if isinstance(secs, int):
+            return datetime.timedelta(seconds=secs)
+
     def status(self, args):
         request = {
             "operation": "status"
@@ -299,14 +308,22 @@ class SonarClient(object):
             if "current_song" in result and result["current_song"]:
                 ct = result["current_song"]
 
-                currently_playing_string = "\nCurrently playing: %s (%s)" % (ct["song"]["title"], ct["song"]["artist"])
+                currently_playing_string = "\n%s - %s (%s)" % (
+                    ct["song"]["artist"],
+                    ct["song"]["title"],
+                    ct["song"]["album"]
+                )
 
                 progress_list = []
                 if "progress" in ct and ct["progress"]:
-                    progress_list.append("Progress: %(time)s / %(length)s (%(percent)s%%)" % ct["progress"])
+                    progress_list.append("%s / %s (%s%%)" % (
+                        self._format_time(ct["progress"]["time"]),
+                        self._format_time(ct["progress"]["length"]),
+                        ct["progress"]["percent"]
+                    ))
 
-                if "playing" in ct and ct["playing"] == False:
-                    progress_list.append("[Paused]")
+                if "player_state" in ct:
+                    progress_list.append("[%s]" % ct["player_state"])
 
                 if "shuffle" in ct and ct["shuffle"]:
                     progress_list.append("[Shuffle]")
@@ -316,6 +333,8 @@ class SonarClient(object):
                 print(currently_playing_string)
                 if progress_list:
                     print("%s\n" % " ".join(progress_list))
+                else:
+                    print()
             else:
                 # Only print "Nothing is playing" if we want verbose output
                 print("\nNothing is playing...\n")
@@ -324,8 +343,6 @@ class SonarClient(object):
         request = {
             "operation": "play"
         }
-
-        # print(args)
 
         if "INDEX" in args and isinstance(args["INDEX"], list) and \
                 len(args["INDEX"]) > 0 and isinstance(args["INDEX"][0], int):
@@ -431,6 +448,15 @@ class SonarClient(object):
 
         self._socket_send(request)
 
+    def remove_from_queue(self, args):
+        request = {
+            "operation": "remove_from_queue",
+            "data": args["INDEX"]
+        }
+
+        self._socket_send(request)
+
+
 if __name__ == "__main__":
     args = docopt(__doc__, version=__version__)
 
@@ -493,8 +519,6 @@ if __name__ == "__main__":
         client.previous_song()
     elif "next" in args and args["next"]:
         client.next_song()
-    elif "shuffle" in args and args["shuffle"]:
-        client.shuffle(args)
     elif "repeat" in args and args["repeat"]:
         client.repeat(args)
     elif "rw" in args and args["rw"]:
@@ -503,18 +527,23 @@ if __name__ == "__main__":
     elif "ff" in args and args["ff"]:
         client.seek(args)
     elif "queue" in args and args["queue"]:
-        if "append" in args and args["append"] or \
-                "add" in args and args["add"] or \
-                "last" in args and args["last"]:
-            client.append_queue(args)
-        elif "clear" in args and args["clear"]:
-            args["INDEX"] = [-1]  # Make sure we are setting queue to empty
-            client.set_queue(args)
+        if "shuffle" in args and args["shuffle"]:
+            client.shuffle(args)
         elif "set" in args and args["set"]:
             client.set_queue(args)
         elif "prepend" in args and args["set"] or \
                 "first" in args and args["first"]:
             client.prepend_queue(args)
+        elif "remove" in args and args["remove"] or \
+                "clear" in args and args["clear"]:
+            if "INDEX" in args and len(args["INDEX"]) == 0:
+                args["INDEX"] = [-1]  # Make sure we are setting queue to empty
+            client.remove_from_queue(args)
+        elif "INDEX" in args and len(args["INDEX"]) > 0 or \
+                "append" in args and args["append"] or \
+                "add" in args and args["add"] or \
+                "last" in args and args["last"]:
+            client.append_queue(args)
         elif "show" in args and args["show"] or True:
             # Default to show queue
             client.show_queue()

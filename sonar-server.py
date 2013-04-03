@@ -28,6 +28,7 @@ import time
 import socket
 import json
 import threading
+from random import shuffle
 from queue import Queue
 
 from libsonar import Subsonic
@@ -87,6 +88,7 @@ class SonarServer(object):
             "set_queue",
             "prepend_queue",
             "append_queue",
+            "remove_from_queue",
             "show_queue"
         )
 
@@ -130,56 +132,67 @@ class SonarServer(object):
                                 ret['current_song'] = self.status()
 
                             elif operation == "play":
-                                if "queue_index" in request:
-                                    success, msg = self.play(queue_index=int(request["queue_index"]))
-                                    if not success:
-                                        ret["code"] = "ERROR"
-                                        ret["message"] = msg
-
-                                else:
-                                    success, msg = self.play()
-                                    if not success:
-                                        ret["code"] = "ERROR"
-                                        ret["message"] = msg
+                                queue_index = request.get("queue_index", 0)
+                                threading.Thread(
+                                    target=self.play,
+                                    args=(queue_index,)
+                                ).start()
 
                             elif operation in ["pause"]:
-                                self.pause()
+                                threading.Thread(target=self.pause).start()
 
                             elif operation in ["playpause"]:
-                                self.playpause()
+                                threading.Thread(target=self.playpause).start()
 
                             elif operation == "stop":
-                                self.stop()
-
-                            elif operation == "next_song":
-                                self.play_next_song()
+                                threading.Thread(target=self.stop).start()
 
                             elif operation == "previous_song":
-                                self.play_previous_song()
+                                threading.Thread(target=self.play_previous_song).start()
+
+                            elif operation == "next_song":
+                                threading.Thread(target=self.play_next_song).start()
 
                             elif operation == "shuffle":
-                                value = None
-                                if "value" in request:
-                                    value = request["value"]
-                                self.set_shuffle(value=value)
+                                threading.Thread(target=self.shuffle_queue).start()
 
                             elif operation == "repeat":
-                                value = None
-                                if "value" in request:
-                                    value = request["value"]
-                                self.set_repeat(value=value)
+                                value = request.get("value", None)
+                                threading.Thread(
+                                    target=self.set_repeat,
+                                    args=(value,)
+                                ).start()
 
                             elif operation == "seek" and "timedelta" in request:
-                                self.seek(request["timedelta"])
+                                threading.Thread(
+                                    target=self.seek,
+                                    args=(request["timedelta"],)
+                                ).start()
 
                             elif operation == "set_queue" and "data" in request:
-                                self.set_queue(request["data"])
+                                threading.Thread(
+                                    target=self.set_queue,
+                                    args=(request["data"],)
+                                ).start()
 
                             elif operation == "prepend_queue" and "data" in request:
-                                self.prepend_queue(request["data"])
+                                threading.Thread(
+                                    target=self.prepend_queue,
+                                    args=(request["data"],)
+                                ).start()
 
                             elif operation == "append_queue" and "data" in request:
-                                self.append_queue(request["data"])
+                                threading.Thread(
+                                    target=self.append_queue,
+                                    args=(request["data"],)
+                                ).start()
+
+                            elif operation == "remove_from_queue" and "data" in request:
+                                threading.Thread(
+                                    target=self.remove_from_queue,
+                                    args=(request["data"],)
+                                ).start()
+
 
                             elif operation == "show_queue":
                                 ret['queue'] = self.queue
@@ -212,7 +225,7 @@ class SonarServer(object):
 
             else:
                 # Wait for a little before starting to listen to socket connection again
-                time.sleep(1)
+                time.sleep(.150)
 
     def _stop_server(self):
         # Stop players and threads and whatnot
@@ -280,42 +293,7 @@ class SonarServer(object):
 
         return queue
 
-
-    def _get_song_from_queue(self, index):
-        ret = None
-        if isinstance(self.current_song, int) and 0 <= index < len(self.queeu):
-            ret = self.queue[index]
-
-        return ret
-
-    def _get_current_song(self):
-        return self._get_song_from_queue(self.current_song)
-
-    def _get_previous_song(self):
-        return self._get_song_from_queue(self.current_song-1)
-
-    def _get_next_song(self):
-        return self._get_song_from_queue(self.current_song+1)
-
-    def _play_song_by_song(self, song=None):
-        # No usecase yet.
-        if not self.queue:
-            # Just return if there is no queue
-            return False, "Can't play if there is no queue."
-
-        if song and "id" in song:
-            song_id = song["id"]
-            s_id = None
-            for idx, s in enumerate(self.queue):
-                if "id" in s and s["id"] == song_id:
-                    self.current_song = idx
-            if s_id:
-                self.player.play(s_id)
-                return True, ""
-
-        return False, "The song is not in the queue: %s" % song
-
-    def _play_song_by_queue_index(self, queue_index=None):
+    def _play_song(self, queue_index):
         if not self.queue:
             # Just return if there is no queue
             return False, "Can't play if there is no queue."
@@ -323,51 +301,24 @@ class SonarServer(object):
         if isinstance(queue_index, int) and queue_index >= 0 and queue_index < len(self.queue):
             self.current_song = queue_index
             s_id = self.queue[queue_index]["id"]
-            self.player.play(s_id)
+            self.player.play_song(s_id)
             return True, ""
 
         return False, "Index not in queue: %s" % queue_index
 
-    def _play_song_by_song_id(self, song_id=None):
-        # No usecase yet.
+    def play(self, queue_index=None):
         if not self.queue:
-            # Just return if there is no queue
+            # No queue. Return sadness.
             return False, "Can't play if there is no queue."
 
-        if song_id and isinstance(song_id, int):
-            s_id = None
-            for idx, s in enumerate(self.queue):
-                if "id" in s and s["id"] == song_id:
-                    self.current_song = idx
-            if s_id:
-                self.player.play(s_id)
-                return True, ""
-
-        return False, "There is no song in the queue with the song_id: %s" % song_id
-
-    def status(self):
-        if not isinstance(self.current_song, int):
-            return None
-
-        ret = {
-            "song": self.queue[self.current_song],
-            "playing": self.player.playing(),
-            "progress": self.player.progress(),
-            "shuffle": self.shuffle,
-            "repeat": self.repeat
-        }
-
-        return ret
-
-    def play(self, queue_index=None):
         if isinstance(queue_index, int):
-            return self._play_song_by_queue_index(queue_index=queue_index)
+            return self._play_song(queue_index)
 
-        elif self.player.playing():
+        elif self.player.is_playing():
             # Return silently if player is already playing
             return True, ""
 
-        elif self.player.filename() and not self.player.playing():
+        elif self.player.is_paused():
             # If player is paused If there is already a song playing. Press play.
             self.player.playpause()
 
@@ -377,57 +328,46 @@ class SonarServer(object):
             # self.current_song = 0
             if not self.current_song:
                 self.current_song = 0
-            self._play_song_by_queue_index(queue_index=self.current_song)
+            self._play_song(self.current_song)
             return True, ""
 
-        # No queue. Return sadness.
-        return False, "Can't play if there is no queue."
 
     def play_previous_song(self):
         if self.queue and isinstance(self.current_song, int):
             queue_index = self.current_song-1
-            if queue_index and isinstance(queue_index, int):
-                if queue_index < 0:
-                    if self.repeat:
-                        queue_index = len(self.queue)-1
-                    else:
-                        queue_index = 0
-                    self._play_song_by_queue_index(queue_index=queue_index)
-                    return True, ""
-                elif queue_index > len(self.queue)-1:
-                    queue_index = 0
-                    if not self.repeat:
-                        self.stop()
-                        return False, "Could not play next song."
-                    self._play_song_by_queue_index(queue_index=queue_index)
-                    return True, ""
+            prev_song = None
+            if self.repeat and queue_index < 0:
+                prev_song = len(self.queue)-1
+            else:
+                if queue_index >= 0:
+                    prev_song = queue_index
+
+            if isinstance(prev_song, int):
+                self._play_song(prev_song)
+                return True, ""
+
+        self.stop()
+        return False, "Could not play previous song."
 
     def play_next_song(self):
         if self.queue and isinstance(self.current_song, int):
             queue_index = self.current_song+1
-            print(queue_index)
-            if queue_index and isinstance(queue_index, int):
-                print("in hehe")
-                print(len(self.queue)-1)
+            next_song = None
+            if self.repeat and queue_index >= len(self.queue):
+                next_song = 0
+            else:
+                if queue_index < len(self.queue):
+                    next_song = queue_index
 
-                if queue_index < 0:
-                    print("<0")
-                    if self.repeat:
-                        queue_index = len(self.queue)-1
-                    else:
-                        queue_index = 0
-
-                elif queue_index > len(self.queue)-1:
-                    print("<len")
-                    queue_index = 0
-                    if not self.repeat:
-                        self.stop()
-                        return False, "Could not play next song."
-                self._play_song_by_queue_index(queue_index=queue_index)
+            if isinstance(next_song, int):
+                self._play_song(next_song)
                 return True, ""
 
+        self.stop()
+        return False, "Could not play next song."
+
     def pause(self):
-        if self.player.playing():
+        if self.player.is_playing():
             self.player.playpause()
 
     def playpause(self):
@@ -435,14 +375,20 @@ class SonarServer(object):
 
     def stop(self):
         self.player.stop()
-        # self.current_song = None
-        # self.queue = []
+        self.current_song = None
+        if self.queue:
+            self.current_song = 0
 
-    def set_shuffle(self, value):
-        if not value:
-            self.shuffle = not self.shuffle
-        else:
-            self.shuffle = value
+    def shuffle_queue(self):
+        if self.queue:
+            if self.current_song:
+                current_song_obj = self.queue.pop(self.current_song)
+
+            shuffle(self.queue)
+
+            if self.current_song:
+                self.queue = [current_song_obj] + self.queue
+                self.current_song = 0
 
     def set_repeat(self, value):
         if not value:
@@ -451,19 +397,43 @@ class SonarServer(object):
             self.repeat = value
 
     def seek(self, timedelta):
-        if self.player.filename():
+        if not self.player.is_stopped():
             self.player.seek(timedelta)
 
     def set_queue(self, data):
-        self.stop()
         self.queue = self._build_queue(data)
-        self.current_song = None
+        self.stop()
 
     def prepend_queue(self, data):
         self.queue = self._build_queue(data) + self.queue
+        if self.queue and not self.current_song:
+            self.current_song = 0
 
     def append_queue(self, data):
         self.queue += self._build_queue(data)
+        if self.queue and not self.current_song:
+            self.current_song = 0
+
+    def remove_from_queue(self, data):
+        if isinstance(data, list) and len(data) == 1 and data[0] == -1:
+            self.queue = []
+            self.stop()
+        else:
+            debug("Removing from queue is not implement yet.")
+
+    def status(self):
+        if not isinstance(self.current_song, int):
+            return None
+
+        ret = {
+            "song": self.queue[self.current_song],
+            "player_state": self.player.player_state(),
+            "progress": self.player.progress(),
+            "shuffle": self.shuffle,
+            "repeat": self.repeat
+        }
+
+        return ret
 
 class PlayerThread(threading.Thread):
     def __init__(self, subsonic, msg_queue):
@@ -482,8 +452,11 @@ class PlayerThread(threading.Thread):
     def _handle_data(self, data):
         # Handle the stdout stream coming back from MPlayer.
         if data.startswith('EOF code:'):
-            # So the file has finished playing? Let the server know!
-            self.msg_queue.put("EOF")
+            if data.split(": ")[1] == "1":
+                # EOF Code: 1 means that the song finished playing
+                # by itself. Therefore we want to try to play the
+                # next song in the queue.
+                self.msg_queue.put("EOF")
 
     def _get_stream(self, song_id):
         return self.subsonic.stream(song_id)
@@ -498,8 +471,7 @@ class PlayerThread(threading.Thread):
             }
         return ret
 
-    def play(self, song_id):
-        print("play")
+    def play_song(self, song_id):
         song_file = os.path.join(self.cache_dir, "%s.mp3" % song_id)
 
         # If not already cached. Download it.
@@ -511,48 +483,56 @@ class PlayerThread(threading.Thread):
             f.write(stream.read())
             f.close()
 
-        print("song file:")
-        print(song_file)
-
         self.mplayer.stop()
         time.sleep(0.05)
         self.mplayer.loadfile(song_file)
         time.sleep(0.05)
         self.mplayer.pause()
 
-    def playing(self):
-        # A little hacky but MPlayer().paused does not
-        # return what would be expected.
-        playing = False
-        time1 = self.mplayer.time_pos
-        time.sleep(0.05)
-        time2 = self.mplayer.time_pos
-        if time1 != time2:
-            playing = True
+    def play(self):
+        if self.is_paused():
+            self.mplayer.pause()
 
-        return playing
+    def pause(self):
+        if self.is_playing():
+            self.mplayer.pause()
 
     def playpause(self):
-        print("playpause")
         self.mplayer.pause()
 
     def stop(self):
         self.mplayer.stop()
 
     def seek(self, timedelta):
-        if self.mplayer.filename and isinstance(timedelta, int):
+        if not self.player.is_stopped() and isinstance(timedelta, int):
             time_pos = self.mplayer.time_pos
             length = self.mplayer.length
             new_time_pos = time_pos + timedelta
             if new_time_pos < 0:
                 new_time_pos = 0
             elif new_time_pos > length:
-                new_time_pos = length - 1
+                # So we have seeked passed the length of the song?
+                # Play next song.
+                self.msg_queue.put("EOF")
 
             self.mplayer.time_pos = new_time_pos
 
-    def filename(self):
-        return self.mplayer.filename
+    def player_state(self):
+        if self.is_playing():
+            return "Playing"
+        elif self.is_paused():
+            return "Paused"
+        else:
+            return "Stopped"
+
+    def is_playing(self):
+        return bool(self.mplayer.filename and not self.mplayer.paused)
+
+    def is_paused(self):
+        return bool(self.mplayer.filename and self.mplayer.paused)
+
+    def is_stopped(self):
+        return bool(not self.mplayer.filename)
 
 if __name__ == "__main__":
     args = docopt(__doc__, version=__version__)
