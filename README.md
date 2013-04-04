@@ -91,4 +91,4 @@ Usage:
 * Handle errors from server in client better. I.e. is server can't play queue index, let the user know. [Issue #8]
 
 ## Long term roadmap
-* ~~Fixing py-sonic for python3 and pull requesting it to crustymonkey.~~ [Moved to Issues: Issue #11]
+* Fixing py-sonic for python3 and pull requesting it to crustymonkey. [Issue #11]
