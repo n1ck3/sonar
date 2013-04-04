@@ -176,9 +176,10 @@ class SonarClient(object):
         print()
         idx = 0
         for artist in artists:
-            self._print("%s: %s" % (
+            self._print("%s: %s [ID: %s]" % (
                 idx,
-                artist['name']
+                artist['name'],
+                artist['id']
             ))
             idx += 1
         print()
@@ -190,10 +191,11 @@ class SonarClient(object):
         print()
         idx = 0
         for album in albums:
-            self._print("%s: %s (%s)" % (
+            self._print("%s: %s (%s) [ID: %s]" % (
                 idx,
                 album['album'],
-                album['artist']
+                album['artist'],
+                album['id']
             ))
             idx += 1
         print()
