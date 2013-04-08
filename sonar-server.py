@@ -235,11 +235,13 @@ class SonarServer(object):
 
     def _build_queue(self, data):
         queue = []
+        order_by_track_number = False
         artists = data.get("artist", [])
         albums = data.get("album", [])
         songs = data.get("song", [])
 
         if len(artists) > 0:
+            order_by_track_number = True
             for a in artists:
                 try:
                     result = self.subsonic.getArtist(a["id"])
@@ -260,11 +262,10 @@ class SonarServer(object):
                     albums.append({"id": album["id"]})
 
         if len(albums) > 0:
+            order_by_track_number = True
             for a in albums:
-                print("doing album: %s" % a["id"])
                 try:
                     result = self.subsonic.getAlbum(a["id"])
-                    print(result)
                 except:
                     debug("ERROR: Could not find album: %s" % a["id"])
                     continue
@@ -291,6 +292,19 @@ class SonarServer(object):
                 if "song" in result:
                     queue.append(result["song"])
 
+        # pretty(queue)
+        if order_by_track_number:
+            queue = sorted(queue, key=lambda song: song['track'])
+
+        # print("")
+        # print("")
+        # print("")
+        # print("")
+        # print(order_by_track_number)
+        # print("")
+        # print("")
+        # print("")
+        # print("")
         return queue
 
     def _play_song(self, queue_index):

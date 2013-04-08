@@ -15,7 +15,7 @@ Usage:
     sonar.py (rw|ff) [TIMEDELTA]
     sonar.py repeat [on|off]
     sonar.py queue [show|shuffle|[[set|(prepend|first)|(append|add|last)|(remove|clear)] INDEX...]]
-    sonar.py [status] [--short]
+    sonar.py [status] [--short|--statusbar]
 
     sonar.py (-h | --help)
     sonar.py (-v | --verbose)
@@ -25,6 +25,7 @@ Options:
     -n LIMIT, --limit LIMIT     Limit results [default: 10]
     -h --help                   Shows this screen
     -s --short                  One line output
+    -sb --statusbar             JSON output that can be used by statusbars
     -v --verbose                Verbose output (i.e. show debug)
     --version                   Show version
 
@@ -109,7 +110,7 @@ class SonarClient(object):
         if "artist" in res_list and len(res_list["artist"]) > 0:
             if isinstance(idxs, list) and len(idxs) == 1 and idxs[0] == -1:
                 idxs = []
-            elif len(idxs[idxs]) == 0:
+            elif len(idxs) == 0:
                 idxs = range(0, len(res_list["artist"]))
 
             for idx in idxs:
@@ -129,7 +130,7 @@ class SonarClient(object):
                 album = res_list["album"][idx]
                 data["album"].append({
                     "id": album["id"],
-                    "album": album["album"],
+                    "album": album["name"],
                     "artist": album["artist"]
                 })
 
@@ -150,11 +151,11 @@ class SonarClient(object):
 
         return data
 
-    def _print(self, data):
+    def _print(self, data, end="\n"):
         if type(data) == str:
             parser = HTMLParser()
             data = parser.unescape(data)
-        print(data)
+        print(data, end=end)
 
     def _print_results(self, results=None):
         if not results:
@@ -193,7 +194,7 @@ class SonarClient(object):
         for album in albums:
             self._print("%s: %s (%s) [ID: %s]" % (
                 idx,
-                album['album'],
+                album['name'],
                 album['artist'],
                 album['id']
             ))
@@ -256,22 +257,22 @@ class SonarClient(object):
         }
         if "artist" in args and args["artist"]:
             kwargs["artistCount"] = args['--limit']
-            res = self.subsonic.search2(query, **kwargs)
+            res = self.subsonic.search3(query, **kwargs)
             ret = {"artist": []}
-            if "artist" in res["searchResult2"]:
-                ret["artist"] = res["searchResult2"]["artist"]
+            if "artist" in res["searchResult3"]:
+                ret["artist"] = res["searchResult3"]["artist"]
         elif "album" in args and args["album"]:
             kwargs["albumCount"] = args['--limit']
-            res = self.subsonic.search2(query, **kwargs)
+            res = self.subsonic.search3(query, **kwargs)
             ret = {"album": []}
-            if "album" in res["searchResult2"]:
-                ret["album"] = res["searchResult2"]["album"]
+            if "album" in res["searchResult3"]:
+                ret["album"] = res["searchResult3"]["album"]
         elif "song" in args and args["song"]:
             kwargs["songCount"] = args['--limit']
-            res = self.subsonic.search2(query, **kwargs)
+            res = self.subsonic.search3(query, **kwargs)
             ret = {"song": []}
-            if "song" in res["searchResult2"]:
-                ret["song"] = res["searchResult2"]["song"]
+            if "song" in res["searchResult3"]:
+                ret["song"] = res["searchResult3"]["song"]
 
         return self._format_results(ret)
 
@@ -299,7 +300,33 @@ class SonarClient(object):
                 if "player_state" in ct:
                     currently_playing_string += " [%s]" % ct["player_state"]
 
-                print(currently_playing_string)
+                self._print(currently_playing_string)
+        elif "--statusbar" in args and args["--statusbar"]:
+            ct = result["current_song"]
+            data = {
+                "song": {
+                    "artist": ct["song"]["artist"],
+                    "album": ct["song"]["album"],
+                    "title": ct["song"]["title"],
+                },
+                "player": {
+                    "state": ct["player_state"],
+                    "shuffle": ct["shuffle"],
+                    "repeat": ct["repeat"]
+                }
+            }
+            if "progress" in ct and ct["progress"]:
+                data["progress"] = {
+                    "time": str(self._format_time(ct["progress"]["time"])),
+                    "length": str(self._format_time(ct["progress"]["length"])),
+                    "percent": ct["progress"]["percent"]
+                }
+            if "queue" in ct and ct["queue"]:
+                data["queue"] = {
+                    "index": ct["queue"]["index"],
+                    "length": ct["queue"]["length"]
+                }
+            self._print(json.dumps(data), end="")
         else:
             if "current_song" in result and result["current_song"]:
                 ct = result["current_song"]
@@ -326,7 +353,7 @@ class SonarClient(object):
                 elif "repeat" in ct and ct["repeat"]:
                     progress_list.append("[Repeat]")
 
-                print(currently_playing_string)
+                self._print(currently_playing_string)
 
                 if progress_list:
                     print("%s\n" % " ".join(progress_list))
