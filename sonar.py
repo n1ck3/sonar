@@ -14,7 +14,7 @@ Usage:
     sonar.py (prev|next)
     sonar.py (rw|ff) [TIMEDELTA]
     sonar.py repeat [on|off]
-    sonar.py queue [show|shuffle|[[set|(prepend|first)|(append|add|last)|(remove|clear)] INDEX...]]
+    sonar.py queue [show|shuffle|sort|[[set|(prepend|first)|(append|add|last)|(remove|clear)] INDEX...]]
     sonar.py [status] [--short|--statusbar]
 
     sonar.py (-h | --help)
@@ -311,7 +311,6 @@ class SonarClient(object):
                 },
                 "player": {
                     "state": ct["player_state"],
-                    "shuffle": ct["shuffle"],
                     "repeat": ct["repeat"]
                 }
             }
@@ -348,9 +347,7 @@ class SonarClient(object):
                 if "player_state" in ct:
                     progress_list.append("[%s]" % ct["player_state"])
 
-                if "shuffle" in ct and ct["shuffle"]:
-                    progress_list.append("[Shuffle]")
-                elif "repeat" in ct and ct["repeat"]:
+                if "repeat" in ct and ct["repeat"]:
                     progress_list.append("[Repeat]")
 
                 self._print(currently_playing_string)
@@ -408,10 +405,13 @@ class SonarClient(object):
         request = {
             "operation": "shuffle"
         }
-        if "on" in args and args["on"]:
-            request["value"] = True
-        elif "off" in args and args["off"]:
-            request["value"] = False
+
+        self._socket_send(request)
+
+    def sort_queue(self, args):
+        request = {
+            "operation": "sort_queue"
+        }
 
         self._socket_send(request)
 
@@ -440,7 +440,7 @@ class SonarClient(object):
 
         result = self._socket_send(request)
 
-        if "queue" in result and len(result["queue"]) > 0:
+        if "queue" in result and isinstance(result["queue"], list) and len(result["queue"]) > 0:
             songs = []
             for item in result["queue"]:
                 songs.append(item)
@@ -553,22 +553,23 @@ if __name__ == "__main__":
     elif "queue" in args and args["queue"]:
         if "shuffle" in args and args["shuffle"]:
             client.shuffle(args)
+        if "sort" in args and args["sort"]:
+            client.sort_queue(args)
         elif "set" in args and args["set"]:
             client.set_queue(args)
-        elif "prepend" in args and args["set"] or \
+        elif "prepend" in args and args["prepend"] or \
                 "first" in args and args["first"]:
             client.prepend_queue(args)
+        elif "append" in args and args["append"] or \
+                "add" in args and args["add"] or \
+                "last" in args and args["last"]:
+            client.append_queue(args)
         elif "remove" in args and args["remove"] or \
                 "clear" in args and args["clear"]:
             if "INDEX" in args and len(args["INDEX"]) == 0:
                 args["INDEX"] = [-1]  # Make sure we are setting queue to empty
             client.remove_from_queue(args)
-        elif "INDEX" in args and len(args["INDEX"]) > 0 or \
-                "append" in args and args["append"] or \
-                "add" in args and args["add"] or \
-                "last" in args and args["last"]:
-            client.append_queue(args)
-        elif "show" in args and args["show"] or True:
+        elif "show" in args and args["show"]:
             # Default to show queue
             client.show_queue()
     elif "status" in args and args["status"] or True:

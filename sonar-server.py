@@ -28,6 +28,7 @@ import time
 import socket
 import json
 import threading
+from operator import itemgetter
 from random import shuffle
 from queue import Queue
 
@@ -85,6 +86,7 @@ class SonarServer(object):
             "seek",
             "repeat",
             "shuffle",
+            "sort_queue",
             "set_queue",
             "prepend_queue",
             "append_queue",
@@ -156,6 +158,9 @@ class SonarServer(object):
                             elif operation == "shuffle":
                                 threading.Thread(target=self.shuffle_queue).start()
 
+                            elif operation == "sort_queue":
+                                threading.Thread(target=self.sort_queue).start()
+
                             elif operation == "repeat":
                                 value = request.get("value", None)
                                 threading.Thread(
@@ -192,7 +197,6 @@ class SonarServer(object):
                                     target=self.remove_from_queue,
                                     args=(request["data"],)
                                 ).start()
-
 
                             elif operation == "show_queue":
                                 ret['queue'] = self.queue
@@ -292,20 +296,14 @@ class SonarServer(object):
                 if "song" in result:
                     queue.append(result["song"])
 
-        # pretty(queue)
-        if order_by_track_number:
-            queue = sorted(queue, key=lambda song: song['track'])
-
-        # print("")
-        # print("")
-        # print("")
-        # print("")
-        # print(order_by_track_number)
-        # print("")
-        # print("")
-        # print("")
-        # print("")
         return queue
+
+    def _sort_queue(self, queue):
+        try:
+            ret = sorted(queue, key=itemgetter("artistId", "albumId", "discNumber", "track"))
+        except:
+            ret = queue
+        return ret
 
     def _play_song(self, queue_index):
         if not self.queue:
@@ -393,17 +391,6 @@ class SonarServer(object):
         if self.queue:
             self.current_song = 0
 
-    def shuffle_queue(self):
-        if self.queue:
-            if self.current_song:
-                current_song_obj = self.queue.pop(self.current_song)
-
-            shuffle(self.queue)
-
-            if self.current_song:
-                self.queue = [current_song_obj] + self.queue
-                self.current_song = 0
-
     def set_repeat(self, value):
         if not value:
             self.repeat = not self.repeat
@@ -415,16 +402,36 @@ class SonarServer(object):
             self.player.seek(timedelta)
 
     def set_queue(self, data):
-        self.queue = self._build_queue(data)
+        queue = self._build_queue(data)
+
+        if "artist" in data and data["artist"] or \
+                "album" in data and data["album"]:
+            queue = self._sort_queue(queue)
+
+        self.queue = queue
         self.stop()
 
     def prepend_queue(self, data):
-        self.queue = self._build_queue(data) + self.queue
+        queue = self._build_queue(data)
+
+        if "artist" in data and data["artist"] or \
+                "album" in data and data["album"]:
+            queue = self._sort_queue(queue)
+
+        self.queue = queue + self.queue
+
         if self.queue and not self.current_song:
             self.current_song = 0
 
     def append_queue(self, data):
-        self.queue += self._build_queue(data)
+        queue = self._build_queue(data)
+
+        if "artist" in data and data["artist"] or \
+                "album" in data and data["album"]:
+            queue = self._sort_queue(queue)
+
+        self.queue += queue
+
         if self.queue and not self.current_song:
             self.current_song = 0
 
@@ -434,6 +441,29 @@ class SonarServer(object):
             self.stop()
         else:
             debug("Removing from queue is not implement yet.")
+
+    def shuffle_queue(self):
+        if self.queue:
+            if self.current_song:
+                current_song_obj = self.queue.pop(self.current_song)
+
+            shuffle(self.queue)
+
+            if self.current_song:
+                self.queue = [current_song_obj] + self.queue
+                self.current_song = 0
+
+    def sort_queue(self):
+        if self.queue:
+            if self.current_song:
+                current_song_obj = self.queue[self.current_song]
+
+            self.queue = self._sort_queue(self.queue)
+
+            try:
+                self.current_song = self.queue.index(current_song_obj)
+            except:
+                self.current_song = 0
 
     def status(self):
         if not isinstance(self.current_song, int):
