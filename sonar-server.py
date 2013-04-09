@@ -44,6 +44,9 @@ msg_queue = Queue(1)
 class SonarServer(object):
     def __init__(self, msg_queue):
         self.config = read_config()
+        self.cache_dir = os.path.join(self.config["sonar"]["tmp_dir"], "cache")
+        os.makedirs(self.cache_dir, exist_ok=True)
+
 
         try:
             self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -56,9 +59,6 @@ class SonarServer(object):
             print("\nCould not start server socket.")
             print("%s\n" % e)
             sys.exit(0)
-
-        self.cache_dir = os.path.join(self.config["sonar"]["tmp_dir"], "cache")
-
 
         subsonic = Subsonic()
         self.subsonic = subsonic.connection
@@ -233,9 +233,7 @@ class SonarServer(object):
 
     def _stop_server(self):
         # Stop players and threads and whatnot
-        self.socket_is_open = False
-        self.mplayer.close()
-        sys.exit(0)
+        self.player.quit()
 
     def _build_queue(self, data):
         queue = []
@@ -508,11 +506,18 @@ class PlayerThread(threading.Thread):
     def progress(self):
         ret = None
         if self.mplayer.time_pos:
-            ret = {
-                "percent": self.mplayer.percent_pos,
-                "time": int(self.mplayer.time_pos),
-                "length": int(self.mplayer.length),
-            }
+            try:
+                ret = {
+                    "percent": self.mplayer.percent_pos,
+                    "time": int(self.mplayer.time_pos),
+                    "length": int(self.mplayer.length),
+                }
+            except:
+                ret = {
+                    "percent": 0,
+                    "time": 0,
+                    "length": 0,
+                }
         return ret
 
     def play_song(self, song_id):
@@ -578,11 +583,63 @@ class PlayerThread(threading.Thread):
     def is_stopped(self):
         return bool(not self.mplayer.filename)
 
+    def quit(self):
+        self.mplayer.quit()
+
 if __name__ == "__main__":
     args = docopt(__doc__, version=__version__)
 
+    config = read_config()
+
+    # Check if another instance of sonar-server is running.
+    pidfile = os.path.join(config["sonar"]["tmp_dir"], "sonar-server.pid")
+    pid = str(os.getpid())
+    if os.path.isfile(pidfile):
+        # Hmm, pidfile already exists. Either it is already running
+        # in which case we should not start another instance of the
+        # server, or the pidfile is stale (sonar-server did not exit
+        # gracefully) and we should overwrite the pidfile and start
+        # the server.
+        pf = open(pidfile, "rt")
+        existing_pid = pf.readline()
+        pf.close()
+        # TODO: Check if not running. In that case, go ahead.
+        try:
+            # Signal: 0 doesn't kill the process. Just checks if it
+            # is running.
+            os.kill(int(existing_pid), 0)
+        except OSError:
+            # If os.kill() raises OSError, we can assume that it
+            # means that the process is not running. Goodie.
+            pass
+        else:
+            # If nothing was raised, process is running. Don't
+            # start another instance of the server.
+            print("\nsonar-server is already running (%s)\n" % existing_pid)
+            sys.exit(1)
+
+    # Still here? Ok, write current pid and start the server.
+    pf = open(pidfile, "wt")
+    pf.write(pid)
+    pf.close()
+
+    # Ok, let's instantiate the server.
     server = SonarServer(msg_queue)
-    server._start_server()
+
+    try:
+        # Start the server and wait for keyboard interrupt
+        server._start_server()
+    except KeyboardInterrupt:
+        # Got keyboard interrupt. Shut down gracefully.
+        print("\n\nKilled by keyboard interrupt\n")
+        server._stop_server()
+        try:
+            # Try to remove pidfile
+            os.remove(pidfile)
+        except OSError:
+            # The file doesn't exist. Whatever.
+            pass
+        sys.exit(0)
 
     # if "search" in args and args["search"]:
     #     client.get_search(args)

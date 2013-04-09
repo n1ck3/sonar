@@ -51,10 +51,13 @@ from libsonar import pretty
 
 class SonarClient(object):
     def __init__(self, subsonic):
-        self.subsonic = subsonic.connection
         self.config = read_config()
-        self.cached_results = os.path.join(self.config["sonar"]["tmp_dir"], "results.cache")
+        self.cache_dir = os.path.join(self.config["sonar"]["tmp_dir"], "cache")
+        os.path.makedirs(self.cache_dir exist_ok=True)
+
+        self.subsonic = subsonic.connection
         self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self.cached_results = os.path.join(self.config["sonar"]["tmp_dir"], "results.cache")
 
     def _socket_send(self, data):
         self.socket.connect((
