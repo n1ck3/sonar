@@ -53,7 +53,7 @@ class SonarClient(object):
     def __init__(self, subsonic):
         self.config = read_config()
         self.cache_dir = os.path.join(self.config["sonar"]["tmp_dir"], "cache")
-        os.path.makedirs(self.cache_dir exist_ok=True)
+        os.makedirs(self.cache_dir, exist_ok=True)
 
         self.subsonic = subsonic.connection
         self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
