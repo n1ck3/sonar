@@ -615,7 +615,7 @@ if __name__ == "__main__":
         else:
             # If nothing was raised, process is running. Don't
             # start another instance of the server.
-            print("\nsonar-server is already running (%s)\n" % existing_pid)
+            print("\nsonar-server is already running (PID: %s)\n" % existing_pid)
             sys.exit(1)
 
     # Still here? Ok, write current pid and start the server.

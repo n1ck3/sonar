@@ -60,10 +60,42 @@ class SonarClient(object):
         self.cached_results = os.path.join(self.config["sonar"]["tmp_dir"], "results.cache")
 
     def _socket_send(self, data):
-        self.socket.connect((
-            self.config['server']['host'],
-            int(self.config['server']['port'])
-        ))
+        try:
+            self.socket.connect((
+                self.config['server']['host'],
+                int(self.config['server']['port'])
+            ))
+        except ConnectionRefusedError:
+            debug("\nsonar-server is not responding. It is possibly not running. Trying to lazy-start sonar-server...\n")
+
+            # Check if another instance of sonar-server is running.
+            pidfile = os.path.join(config["sonar"]["tmp_dir"], "sonar-server.pid")
+            pid = str(os.getpid())
+            if os.path.isfile(pidfile):
+                # Hmm, pidfile already exists. Either it is already running
+                # in which case we should not start another instance of the
+                # server, or the pidfile is stale (sonar-server did not exit
+                # gracefully) and we should overwrite the pidfile and start
+                # the server.
+                pf = open(pidfile, "rt")
+                existing_pid = pf.readline()
+                pf.close()
+                # TODO: Check if not running. In that case, go ahead.
+                try:
+                    # Signal: 0 doesn't kill the process. Just checks if it
+                    # is running.
+                    os.kill(int(existing_pid), 0)
+
+                except OSError:
+                    # If os.kill() raises OSError, we can assume that it
+                    # means that the process is not running. Goodie.
+                    # TODO: Start server in daemon mode.
+                    pass
+                else:
+                    # If nothing was raised, process is running. Don't
+                    # start another instance of the server.
+                    debug("\nsonar-server is in fact running (PID: %s). Maybe it has charshed?\n" % existing_pid)
+                    sys.exit(1)
 
         request = json.dumps(data)
         self.socket.sendall(request.encode("utf-8"))
