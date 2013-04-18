@@ -4,13 +4,14 @@
 Sonar Server
 
 Usage:
+    sonar-server.py -d | --daemon
+    sonar-server.py -h | --help
+    sonar-server.py -v | --verbose
+    sonar-server.py --version
     sonar-server.py
 
-    sonar-server.py (-h | --help)
-    sonar-server.py (-v | --verbose)
-    sonar-server.py --version
-
 Options:
+    -d --daemon                 Start server as a daemon
     -h --help                   Shows this screen
     -v --verbose                Verbose output (i.e. show debug)
     --version                   Show version
@@ -72,8 +73,26 @@ class SonarServer(object):
 
         self.msg_queue = msg_queue
 
-    def _start_server(self):
-        debug("Starting server")
+    def _start_server(self, daemon=False):
+        if daemon:
+            debug("Starting server as a daemon")
+            try:
+                pid = os.fork()
+                if pid > 0:
+                    # At this point we successfully forked the process. Now we need to update
+                    # the pidfile to contain the forks pid.
+                    pidfile = os.path.join(self.config["sonar"]["tmp_dir"], "sonar-server.pid")
+                    pf = open(pidfile, "wt")
+                    pf.write(str(pid))
+                    pf.close()
+
+                    # We are done here. Return.
+                    sys.exit(0)
+            except OSError as e:
+                print("Fork failed.")
+                sys.exit(1)
+        else:
+            debug("Starting server")
 
         operations = (
             "status",
@@ -484,7 +503,7 @@ class PlayerThread(threading.Thread):
 
         subsonic = Subsonic()
         self.subsonic = subsonic.connection
-        self.mplayer = MPlayer(args=("-really-quiet", "-msglevel", "global=6"))
+        self.mplayer = MPlayer(args=("-really-quiet", "-msglevel", "global=6"), stdout=None)
         self.mplayer.stdout.connect(self._handle_data)
 
         self.msg_queue = msg_queue
@@ -591,6 +610,7 @@ if __name__ == "__main__":
 
     config = read_config()
 
+    # TODO: Make generic and share this with the client.
     # Check if another instance of sonar-server is running.
     pidfile = os.path.join(config["sonar"]["tmp_dir"], "sonar-server.pid")
     pid = str(os.getpid())
@@ -612,6 +632,9 @@ if __name__ == "__main__":
             # If os.kill() raises OSError, we can assume that it
             # means that the process is not running. Goodie.
             pass
+        except ValueError:
+            # The pidfile existed but did not contain a pid. Whatevs.
+            pass
         else:
             # If nothing was raised, process is running. Don't
             # start another instance of the server.
@@ -626,26 +649,21 @@ if __name__ == "__main__":
     # Ok, let's instantiate the server.
     server = SonarServer(msg_queue)
 
-    try:
-        # Start the server and wait for keyboard interrupt
-        server._start_server()
-    except KeyboardInterrupt:
-        # Got keyboard interrupt. Shut down gracefully.
-        print("\n\nKilled by keyboard interrupt\n")
-        server._stop_server()
+    if "--daemon" in args and args["--daemon"]:
+        # We should start sonar-server daemonized
+        server._start_server(daemon=True)
+    else:
         try:
-            # Try to remove pidfile
-            os.remove(pidfile)
-        except OSError:
-            # The file doesn't exist. Whatever.
-            pass
-        sys.exit(0)
-
-    # if "search" in args and args["search"]:
-    #     client.get_search(args)
-    # elif "random" in args and args["random"]:
-    #     client.get_random(args)
-    # elif "play" in args and args["play"]:
-    #     player.play(song_id=args["SONG_ID"])
-    # elif "shell" in args and args["shell"]:
-    #     client.shell()
+            # Start the server and wait for keyboard interrupt
+            server._start_server()
+        except KeyboardInterrupt:
+            # Got keyboard interrupt. Shut down gracefully.
+            print("\n\nKilled by keyboard interrupt\n")
+            server._stop_server()
+            try:
+                # Try to remove pidfile
+                os.remove(pidfile)
+            except OSError:
+                # The file doesn't exist. Whatever.
+                pass
+            sys.exit(0)

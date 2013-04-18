@@ -17,8 +17,8 @@ Usage:
     sonar.py queue [show|shuffle|sort|[[set|(prepend|first)|(append|add|last)|(remove|clear)] INDEX...]]
     sonar.py [status] [--short|--statusbar]
 
-    sonar.py (-h | --help)
-    sonar.py (-v | --verbose)
+    sonar.py -h | --help
+    sonar.py -v | --verbose
     sonar.py --version
 
 Options:
@@ -59,6 +59,10 @@ class SonarClient(object):
         self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.cached_results = os.path.join(self.config["sonar"]["tmp_dir"], "results.cache")
 
+    def _start_server(self):
+        debug("\nTODO: sonar-server is not running. Lazy start sonar-server.\n")
+        sys.exit(1)
+
     def _socket_send(self, data):
         try:
             self.socket.connect((
@@ -66,12 +70,14 @@ class SonarClient(object):
                 int(self.config['server']['port'])
             ))
         except ConnectionRefusedError:
-            debug("\nsonar-server is not responding. It is possibly not running. Trying to lazy-start sonar-server...\n")
+            debug("\nsonar-server is not responding. It is possibly not running. Trying to lazy start sonar-server...\n")
 
+            # TODO: Make generic and share this with the server.
             # Check if another instance of sonar-server is running.
-            pidfile = os.path.join(config["sonar"]["tmp_dir"], "sonar-server.pid")
+            pidfile = os.path.join(self.config["sonar"]["tmp_dir"], "sonar-server.pid")
             pid = str(os.getpid())
             if os.path.isfile(pidfile):
+                debug("in if")
                 # Hmm, pidfile already exists. Either it is already running
                 # in which case we should not start another instance of the
                 # server, or the pidfile is stale (sonar-server did not exit
@@ -82,20 +88,30 @@ class SonarClient(object):
                 pf.close()
                 # TODO: Check if not running. In that case, go ahead.
                 try:
+                    debug("in try")
                     # Signal: 0 doesn't kill the process. Just checks if it
                     # is running.
                     os.kill(int(existing_pid), 0)
 
                 except OSError:
+                    debug("in oserror")
                     # If os.kill() raises OSError, we can assume that it
                     # means that the process is not running. Goodie.
                     # TODO: Start server in daemon mode.
-                    pass
+                    self._start_server()
                 else:
+                    debug("in try: else")
                     # If nothing was raised, process is running. Don't
                     # start another instance of the server.
                     debug("\nsonar-server is in fact running (PID: %s). Maybe it has charshed?\n" % existing_pid)
                     sys.exit(1)
+            else:
+                # No pidfile was found. That means that in the best of
+                # worlds, sonar-server should not be running. Try to
+                # figure out if it does anyway. If so, save the sonar-server
+                # pid to the pidfile, otherwise start sonar-server.
+                # TODO: Figure out if server is running.
+                self._start_server()
 
         request = json.dumps(data)
         self.socket.sendall(request.encode("utf-8"))
