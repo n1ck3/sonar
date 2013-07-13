@@ -24,25 +24,25 @@ Simple Python3 CLI for Subsonic Media Server
 After having installed and configured `Subsonc` and `MPlayer`:
 ```bash
 $ mkdir ~/src && cd ~/src
-$ git pull https://github.com/docopt/docopt
-$ mplayer.py (https://github.com/baudm/mplayer.py.git)
-$ git pull https://github.com/n1ck3/py-sonic && cd py-sonic && git checkout master-py3 && cd ..
-$ git pull https://github.com/n1ck3/sonar
+$ git clone https://github.com/docopt/docopt
+$ git clone https://github.com/baudm/mplayer.py.git)
+$ git clone https://github.com/n1ck3/py-sonic && cd py-sonic && git checkout master-py3 && cd ..
+$ git clone https://github.com/n1ck3/sonar
 $ cd sonar && ln -s ../docopt/docopt.py . && ln -s ../mplayer.py/mplayer . && ln -s ../py-sonic/libsonic . && cd ..
-$ sudo ln -s ~/src/sonar/sonar.py /usr/bin/sonar
+$ sudo ln -s ~/src/sonar/sonar.py /usr/bin/sonar && sudo ln -s ~/src/sonar/sonar-server.py /usr/bin/sonar-server
 ```
 
 ## Usage
-### NOTE: This software is nowhere near useful at this point.
+### NOTE: This software is not ready yet. However, it does have the fundamental functionality present and working.
 
-This assumes that you have pulled this repo into `~/src/sonar`
+This assumes that you followed the instructions above which had you link the python scripts to a folder that is in you $PATH as `sonar` and `sonar-server`.
 
 ### Sonar Server
 At this point, you have to run the server in it's own terminal window (sure you can fork it and whatnot, but you are going to know whats going on with the server as it is likely to crash at any point in time. :))
 
 ```
 Usage:
-    sonarserver.py
+    sonar-server.py
 ```
 
 ### Sonar Client
