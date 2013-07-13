@@ -28,7 +28,7 @@ $ git pull https://github.com/docopt/docopt
 $ mplayer.py (https://github.com/baudm/mplayer.py.git)
 $ git pull https://github.com/n1ck3/py-sonic && cd py-sonic && git checkout master-py3 && cd ..
 $ git pull https://github.com/n1ck3/sonar
-$ cd sonar && ln -s ../docopt . && ln -s ../mplayer.py/mplayer . && ln -s ../py-sonic/libsonic . && cd ..
+$ cd sonar && ln -s ../docopt/docopt.py . && ln -s ../mplayer.py/mplayer . && ln -s ../py-sonic/libsonic . && cd ..
 $ sudo ln -s ~/src/sonar/sonar.py /usr/bin/sonar
 ```
 

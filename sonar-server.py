@@ -47,7 +47,6 @@ class SonarServer(object):
         self.cache_dir = os.path.join(self.config["sonar"]["tmp_dir"], "cache")
         os.makedirs(self.cache_dir, exist_ok=True)
 
-
         try:
             self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
