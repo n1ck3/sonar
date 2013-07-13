@@ -35,11 +35,11 @@ from queue import Queue
 from libsonar import Subsonic
 from libsonar import read_config
 from libsonar import debug
-from libsonar import pretty
 
 from mplayer import Player as MPlayer
 
 msg_queue = Queue(1)
+
 
 class SonarServer(object):
     def __init__(self, msg_queue):
@@ -140,25 +140,39 @@ class SonarServer(object):
                                 ).start()
 
                             elif operation in ["pause"]:
-                                threading.Thread(target=self.pause).start()
+                                threading.Thread(
+                                    target=self.pause
+                                ).start()
 
                             elif operation in ["playpause"]:
-                                threading.Thread(target=self.playpause).start()
+                                threading.Thread(
+                                    target=self.playpause
+                                ).start()
 
                             elif operation == "stop":
-                                threading.Thread(target=self.stop).start()
+                                threading.Thread(
+                                    target=self.stop
+                                ).start()
 
                             elif operation == "previous_song":
-                                threading.Thread(target=self.play_previous_song).start()
+                                threading.Thread(
+                                    target=self.play_previous_song
+                                ).start()
 
                             elif operation == "next_song":
-                                threading.Thread(target=self.play_next_song).start()
+                                threading.Thread(
+                                    target=self.play_next_song
+                                ).start()
 
                             elif operation == "shuffle":
-                                threading.Thread(target=self.shuffle_queue).start()
+                                threading.Thread(
+                                    target=self.shuffle_queue
+                                ).start()
 
                             elif operation == "sort_queue":
-                                threading.Thread(target=self.sort_queue).start()
+                                threading.Thread(
+                                    target=self.sort_queue
+                                ).start()
 
                             elif operation == "repeat":
                                 value = request.get("value", None)
@@ -167,31 +181,36 @@ class SonarServer(object):
                                     args=(value,)
                                 ).start()
 
-                            elif operation == "seek" and "timedelta" in request:
+                            elif operation == "seek" and \
+                                    "timedelta" in request:
                                 threading.Thread(
                                     target=self.seek,
                                     args=(request["timedelta"],)
                                 ).start()
 
-                            elif operation == "set_queue" and "data" in request:
+                            elif operation == "set_queue" and \
+                                    "data" in request:
                                 threading.Thread(
                                     target=self.set_queue,
                                     args=(request["data"],)
                                 ).start()
 
-                            elif operation == "prepend_queue" and "data" in request:
+                            elif operation == "prepend_queue" and \
+                                    "data" in request:
                                 threading.Thread(
                                     target=self.prepend_queue,
                                     args=(request["data"],)
                                 ).start()
 
-                            elif operation == "append_queue" and "data" in request:
+                            elif operation == "append_queue" and \
+                                    "data" in request:
                                 threading.Thread(
                                     target=self.append_queue,
                                     args=(request["data"],)
                                 ).start()
 
-                            elif operation == "remove_from_queue" and "data" in request:
+                            elif operation == "remove_from_queue" and \
+                                    "data" in request:
                                 threading.Thread(
                                     target=self.remove_from_queue,
                                     args=(request["data"],)
@@ -201,14 +220,13 @@ class SonarServer(object):
                                 ret['queue'] = self.queue
 
                         else:
-                            # The request operation was not found in the list of
-                            # permitted operations. Go bananas.
+                            # The request operation was not found in the list
+                            # of permitted operations. Go bananas.
                             raise Exception("Operation not permitted.")
 
                     else:
                         # "operation" not in request. You know the drill.
                         raise Exception("No operation given.")
-
 
                     # Send the response to the client.
                     response = json.dumps(ret)
@@ -227,7 +245,8 @@ class SonarServer(object):
                     raise
 
             else:
-                # Wait for a little before starting to listen to socket connection again
+                # Wait for a little before starting to listen
+                # to socket connection again.
                 time.sleep(.150)
 
     def _stop_server(self):
@@ -236,13 +255,13 @@ class SonarServer(object):
 
     def _build_queue(self, data):
         queue = []
-        order_by_track_number = False
+        # order_by_track_number = False
         artists = data.get("artist", [])
         albums = data.get("album", [])
         songs = data.get("song", [])
 
         if len(artists) > 0:
-            order_by_track_number = True
+            # order_by_track_number = True
             for a in artists:
                 try:
                     result = self.subsonic.getArtist(a["id"])
@@ -263,7 +282,7 @@ class SonarServer(object):
                     albums.append({"id": album["id"]})
 
         if len(albums) > 0:
-            order_by_track_number = True
+            # order_by_track_number = True
             for a in albums:
                 try:
                     result = self.subsonic.getAlbum(a["id"])
@@ -297,7 +316,10 @@ class SonarServer(object):
 
     def _sort_queue(self, queue):
         try:
-            ret = sorted(queue, key=itemgetter("artistId", "albumId", "discNumber", "track"))
+            ret = sorted(
+                queue,
+                key=itemgetter("artistId", "albumId", "discNumber", "track")
+            )
         except:
             ret = queue
         return ret
@@ -307,7 +329,9 @@ class SonarServer(object):
             # Just return if there is no queue
             return False, "Can't play if there is no queue."
 
-        if isinstance(queue_index, int) and queue_index >= 0 and queue_index < len(self.queue):
+        if isinstance(queue_index, int) and \
+                queue_index >= 0 and \
+                queue_index < len(self.queue):
             self.current_song = queue_index
             s_id = self.queue[queue_index]["id"]
             self.player.play_song(s_id)
@@ -328,7 +352,8 @@ class SonarServer(object):
             return True, ""
 
         elif self.player.is_paused():
-            # If player is paused If there is already a song playing. Press play.
+            # If player is paused If there is already
+            # a song playing. Press play.
             self.player.playpause()
 
         elif len(self.queue) > 0:
@@ -339,7 +364,6 @@ class SonarServer(object):
                 self.current_song = 0
             self._play_song(self.current_song)
             return True, ""
-
 
     def play_previous_song(self):
         if self.queue and isinstance(self.current_song, int):
@@ -476,6 +500,7 @@ class SonarServer(object):
 
         return ret
 
+
 class PlayerThread(threading.Thread):
     def __init__(self, subsonic, msg_queue):
         self.config = read_config()
@@ -532,9 +557,9 @@ class PlayerThread(threading.Thread):
             f.close()
 
         self.mplayer.stop()
-        time.sleep(0.05)
+        time.sleep(0.1)  # Hacky, but needed to work.. :(
         self.mplayer.loadfile(song_file)
-        time.sleep(0.05)
+        time.sleep(0.1)  # Hacky, but needed to work.. :(
         self.mplayer.pause()
 
     def play(self):
@@ -552,7 +577,7 @@ class PlayerThread(threading.Thread):
         self.mplayer.stop()
 
     def seek(self, timedelta):
-        if not self.player.is_stopped() and isinstance(timedelta, int):
+        if not self.is_stopped() and isinstance(timedelta, int):
             time_pos = self.mplayer.time_pos
             length = self.mplayer.length
             new_time_pos = time_pos + timedelta
