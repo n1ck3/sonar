@@ -4,22 +4,18 @@
 Sonar Client
 
 Usage:
-    sonar.py search [(artist|album|song) SEARCH_STRING...] [--limit LIMIT]
-    sonar.py random [album|song] [--limit LIMIT]
-    sonar.py (last|list)
-    sonar.py play [INDEX]
-    sonar.py pause
-    sonar.py (playpause|pp)
-    sonar.py stop
-    sonar.py (prev|next)
-    sonar.py (rw|ff) [TIMEDELTA]
-    sonar.py repeat [on|off]
-    sonar.py queue [show|shuffle|sort|[[set|(prepend|first)|(append|add|last)|(remove|clear)] INDEX...]]
-    sonar.py [status] [--short|--statusbar]
-
-    sonar.py (-h | --help)
-    sonar.py (-v | --verbose)
-    sonar.py --version
+    sonar.py (search | s) [(artist|album|song) SEARCH_STRING...] [options]
+    sonar.py (random | x) [album|song] [options]
+    sonar.py (last | list | l) [options]
+    sonar.py (play) [INDEX] [options]
+    sonar.py (pause) [options]
+    sonar.py (playpause | pp) [options]
+    sonar.py (stop | s) [options]
+    sonar.py ((previous | prev | p) | (next | n)) [options]
+    sonar.py ((rewind | rw) | (fastforward | ff)) [TIMEDELTA] [options]
+    sonar.py (repeat | r) [on | off] [options]
+    sonar.py (queue | q) [(shuffle | x) | (sort | s)|[[(set | s)|(prepend | first | p)|(append | add | last | a)|(remove | clear | c)] INDEX...]] [options]
+    sonar.py [status] [options]
 
 Options:
     -n LIMIT, --limit LIMIT     Limit results [default: 10]
@@ -46,20 +42,28 @@ from html.parser import HTMLParser
 from libsonar import Subsonic
 from libsonar import read_config
 from libsonar import debug
-from libsonar import pretty
 
 
 class SonarClient(object):
     def __init__(self, subsonic):
+        self.DEBUG = False
         self.config = read_config()
-        self.cache_dir = os.path.join(self.config["sonar"]["tmp_dir"], "cache")
+        self.tmp_dir = os.path.join(self.config["sonar"]["tmp_dir"])
+        self.cache_dir = os.path.join(self.tmp_dir, "cache")
+        os.makedirs(self.tmp_dir, exist_ok=True)
         os.makedirs(self.cache_dir, exist_ok=True)
 
         self.subsonic = subsonic.connection
         self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        self.cached_results = os.path.join(self.config["sonar"]["tmp_dir"], "results.cache")
+        self.cached_results = os.path.join(
+            self.config["sonar"]["tmp_dir"],
+            "results.cache"
+        )
 
     def _socket_send(self, data):
+        if self.DEBUG:
+            print("\n > Debug: %s \n" % data)
+
         self.socket.connect((
             self.config['server']['host'],
             int(self.config['server']['port'])
@@ -133,7 +137,7 @@ class SonarClient(object):
                 album = res_list["album"][idx]
                 data["album"].append({
                     "id": album["id"],
-                    "album": album["name"],
+                    'album': album["name"],  # album["album"] ?
                     "artist": album["artist"]
                 })
 
@@ -197,7 +201,7 @@ class SonarClient(object):
         for album in albums:
             self._print("%s: %s (%s) [ID: %s]" % (
                 idx,
-                album['name'],
+                album['album'],
                 album['artist'],
                 album['id']
             ))
@@ -232,7 +236,10 @@ class SonarClient(object):
     def get_random(self, args):
         if "album" in args and args["album"]:
             ret = {"album": []}
-            res = self.subsonic.getAlbumList(ltype="random", size=args['--limit'])
+            res = self.subsonic.getAlbumList(
+                ltype="random",
+                size=args['--limit']
+            )
             if "album" in res["albumList"]:
                 ret["album"] = res["albumList"]["album"]
         elif "song" in args and args["song"]:
@@ -278,10 +285,6 @@ class SonarClient(object):
                 ret["song"] = res["searchResult3"]["song"]
 
         return self._format_results(ret)
-
-    def _format_time(self, secs):
-        if isinstance(secs, int):
-            return datetime.timedelta(seconds=secs)
 
     def status(self, args):
         request = {
@@ -424,8 +427,11 @@ class SonarClient(object):
         }
         if "on" in args and args["on"]:
             request["value"] = True
-        elif "off" in args or args["off"]:
+        elif "off" in args and args["off"]:
             request["value"] = False
+        else:
+            # Toggle repeat plz.
+            request["value"] = None
 
         self._socket_send(request)
 
@@ -443,7 +449,9 @@ class SonarClient(object):
 
         result = self._socket_send(request)
 
-        if "queue" in result and isinstance(result["queue"], list) and len(result["queue"]) > 0:
+        if "queue" in result and \
+                isinstance(result["queue"], list) and \
+                len(result["queue"]) > 0:
             songs = []
             for item in result["queue"]:
                 songs.append(item)
@@ -492,6 +500,8 @@ if __name__ == "__main__":
     ###
     subsonic = Subsonic()
     client = SonarClient(subsonic)
+    if "--verbose" in args and args["--verbose"]:
+        client.DEBUG = True
 
     ###
     ##  Fix defaults and fallbacks
@@ -527,52 +537,70 @@ if __name__ == "__main__":
     ###
     ##  Main arg handler
     ###
-    if "search" in args and args["search"]:
+    if "search" in args and args["search"] or \
+            "s" in args and args["s"]:
         client.search(args)
-    elif "random" in args and args["random"]:
+    elif "random" in args and args["random"] or \
+            "x" in args and args["x"]:
         client.random(args)
-    elif "last" in args and args["last"] or \
-            "list" in args and args["list"]:
+    elif "list" in args and args["list"] or \
+            "last" in args and args["last"] or \
+            "l" in args and args["l"]:
         client._print_results()
     elif "play" in args and args["play"]:
         client.play(args)
-    elif "playpause" in args and args["playpause"] or "pp" and args["pp"]:
-        client.playpause()
     elif "pause" in args and args["pause"]:
         client.pause()
-    elif "stop" in args and args["stop"]:
+    elif "playpause" in args and args["playpause"] or \
+            "pp" and args["pp"]:
+        client.playpause()
+    elif "stop" in args and args["stop"] or \
+            "s" and args["s"]:
         client.stop()
-    elif "prev" in args and args["prev"]:
+    elif "previous" in args and args["previous"] or \
+            "prev" in args and args["prev"] or \
+            "p" and args["p"]:
         client.previous_song()
-    elif "next" in args and args["next"]:
+    elif "next" in args and args["next"] or \
+            "n" and args["n"]:
         client.next_song()
-    elif "repeat" in args and args["repeat"]:
+    elif "repeat" in args and args["repeat"] or \
+            "r" and args["r"]:
         client.repeat(args)
-    elif "rw" in args and args["rw"]:
+    elif "rewind" in args and args["rewind"] or \
+            "rw" in args and args["rw"]:
         args["TIMEDELTA"] = -args["TIMEDELTA"]
         client.seek(args)
-    elif "ff" in args and args["ff"]:
+    elif "fastforward" in args and args["fastforward"] or \
+            "ff" in args and args["ff"]:
         client.seek(args)
-    elif "queue" in args and args["queue"]:
-        if "shuffle" in args and args["shuffle"]:
+    elif "queue" in args and args["queue"] or \
+            "q" in args and args["q"]:
+        if "shuffle" in args and args["shuffle"] or \
+                "x" in args and args["x"]:
             client.shuffle(args)
-        if "sort" in args and args["sort"]:
+        elif "sort" in args and args["sort"] or \
+                "o" in args and args["o"]:
             client.sort_queue(args)
-        elif "set" in args and args["set"]:
+        elif "set" in args and args["set"] or \
+                "s" in args and args["s"]:
             client.set_queue(args)
         elif "prepend" in args and args["prepend"] or \
-                "first" in args and args["first"]:
+                "first" in args and args["first"] or \
+                "p" in args and args["p"]:
             client.prepend_queue(args)
         elif "append" in args and args["append"] or \
                 "add" in args and args["add"] or \
-                "last" in args and args["last"]:
+                "last" in args and args["last"] or \
+                "a" in args and args["a"]:
             client.append_queue(args)
         elif "remove" in args and args["remove"] or \
-                "clear" in args and args["clear"]:
+                "clear" in args and args["clear"] or \
+                "c" in args and args["c"]:
             if "INDEX" in args and len(args["INDEX"]) == 0:
                 args["INDEX"] = [-1]  # Make sure we are setting queue to empty
             client.remove_from_queue(args)
-        elif "show" in args and args["show"]:
+        else:
             # Default to show queue
             client.show_queue()
     elif "status" in args and args["status"] or True:
