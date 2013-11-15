@@ -199,9 +199,16 @@ class SonarClient(object):
         print()
         idx = 0
         for album in albums:
+            album_name = album.get(
+                "name",
+                album.get(
+                    "album",
+                    "Unknown album name"
+                )
+            )
             self._print("%s: %s (%s) [ID: %s]" % (
                 idx,
-                album['album'],
+                album_name,
                 album['artist'],
                 album['id']
             ))

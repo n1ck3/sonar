@@ -557,10 +557,10 @@ class PlayerThread(threading.Thread):
             f.close()
 
         self.mplayer.stop()
-        time.sleep(0.1)  # Hacky, but needed to work.. :(
+        # time.sleep(0.1)  # Hacky, but needed to work.. :(
         self.mplayer.loadfile(song_file)
-        time.sleep(0.1)  # Hacky, but needed to work.. :(
-        self.mplayer.pause()
+        # time.sleep(0.1)  # Hacky, but needed to work.. :(
+        # self.mplayer.pause()
 
     def play(self):
         if self.is_paused():
