@@ -39,3 +39,6 @@ nosetests.xml
 docopt.py
 libsonic
 mplayer
+
+# OSX ;@
+.DS_Store
