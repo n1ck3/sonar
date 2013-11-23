@@ -48,17 +48,14 @@ class SonarClient(object):
     def __init__(self, subsonic):
         self.DEBUG = False
         self.config = read_config()
-        self.tmp_dir = os.path.join(self.config["sonar"]["tmp_dir"])
-        self.cache_dir = os.path.join(self.tmp_dir, "cache")
-        os.makedirs(self.tmp_dir, exist_ok=True)
+        self.sonar_dir = os.path.join(self.config["sonar"]["sonar_dir"])
+        self.cache_dir = os.path.join(self.sonar_dir, "cache")
+        os.makedirs(self.sonar_dir, exist_ok=True)
         os.makedirs(self.cache_dir, exist_ok=True)
 
         self.subsonic = subsonic.connection
         self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        self.cached_results = os.path.join(
-            self.config["sonar"]["tmp_dir"],
-            "results.cache"
-        )
+        self.cached_results = os.path.join(self.cache_dir, "results.cache")
 
     def _socket_send(self, data):
         if self.DEBUG:
