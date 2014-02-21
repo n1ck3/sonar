@@ -5,7 +5,8 @@ import configparser
 import json
 from urllib.error import HTTPError
 
-from libsonic.connection import Connection
+from pysonic.libsonic.connection import Connection
+
 
 def pretty(data, indent=2):
     print(
@@ -15,6 +16,7 @@ def pretty(data, indent=2):
             indent=indent
         )
     )
+
 
 def debug(data):
     date_string = datetime.datetime.now().strftime("%H:%M:%S")
@@ -61,7 +63,8 @@ def read_config():
 
     return config
 
-class Subsonic(object):
+
+class Subsonic():
     def __init__(self):
         self.config = read_config()
         self.connection = self.connect()

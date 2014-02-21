@@ -36,9 +36,12 @@ nosetests.xml
 
 # Sonar
 .sonar.conf
-docopt.py
-libsonic
-mplayer
+# docopt.py
+# libsonic
+# mplayer
+
+# Virtualenv
+include
 
 # OSX ;@
 .DS_Store

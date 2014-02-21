@@ -3,33 +3,39 @@ sonar
 
 Simple Python3 CLI for Subsonic Media Server
 
-## Requirements
+## System dependencies
 
 * Python3
-* docopt (https://github.com/docopt/docopt)
 * MPlayer (http://www.mplayerhq.hu)
-* mplayer.py (https://github.com/baudm/mplayer.py.git)
 * Subsonic Media Server (http://www.subsonic.org)
-* py-sonic (https://github.com/n1ck3/py-sonic) (Note: master-py3 banch)
+
+## Submodules
+* docopt (https://github.com/docopt/docopt)
+* py-sonic (https://github.com/n1ck3/py-sonic@master-py3)
+* mplayer.py (https://github.com/baudm/mplayer.py.git)
 
 ## Installation
 
-1. Install depencendies
-2. Pull this repo
-3. Make sure either you have all the deps in your [python] path or link them into the sonar repo.
-4. Copy and edit the `sonar.conf` file to your home directory `~/sonar.conf`.
-5. Make sure sonar is in your path for easier usage:
+1. Install system depencendies
+1. Pull this repo
+1. Initialize and update all submodules
+1. Copy and edit the `sonar.conf` file to your home directory `~/sonar.conf`.
+1. Make sure sonar and sonar-server is in your path for easier usage.
+   Optionally alias them to something short that you don't mind writing a lot.
+   ;)
 
-*E.g.*
+**Example setup blow-by-blow**
 After having installed and configured `Subsonc` and `MPlayer`:
 ```bash
-$ mkdir ~/src && cd ~/src
-$ git clone https://github.com/docopt/docopt
-$ git clone https://github.com/baudm/mplayer.py.git)
-$ git clone https://github.com/n1ck3/py-sonic && cd py-sonic && git checkout master-py3 && cd ..
+$ mkdir ~/git && cd ~/git
+> $ git clone https://github.com/docopt/docopt
+> $ git clone https://github.com/baudm/mplayer.py.git)
+> $ git clone https://github.com/n1ck3/py-sonic && cd py-sonic && git checkout master-py3 && cd ..
 $ git clone https://github.com/n1ck3/sonar
-$ cd sonar && ln -s ../docopt/docopt.py . && ln -s ../mplayer.py/mplayer . && ln -s ../py-sonic/libsonic . && cd ..
-$ sudo ln -s ~/src/sonar/sonar.py /usr/bin/sonar && sudo ln -s ~/src/sonar/sonar-server.py /usr/bin/sonar-server
+$ cd sonar
+$ git submodule init && git submodule update
+$ sudo ln -s ~/src/sonar/sonar.py /usr/bin/sonar
+$ sudo ln -s ~/src/sonar/sonar-server.py /usr/bin/sonar-server
 ```
 
 ## Usage

@@ -616,7 +616,9 @@ if __name__ == "__main__":
     config = read_config()
 
     # Check if another instance of sonar-server is running.
-    pidfile = os.path.join(config["sonar"]["tmp_dir"], "sonar-server.pid")
+    pidpath = config["sonar"]["tmp_dir"]
+    os.makedirs(pidpath, exist_ok=True)
+    pidfile = os.path.join(pidpath, "sonar-server.pid")
     pid = str(os.getpid())
     if os.path.isfile(pidfile):
         # Hmm, pidfile already exists. Either it is already running
