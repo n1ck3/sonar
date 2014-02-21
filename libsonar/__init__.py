@@ -39,7 +39,7 @@ def read_config():
 
         # Valiadate server section
         assert "sonar" in config
-        assert "tmp_dir" in config["sonar"]
+        assert "sonar_dir" in config["sonar"]
 
         # Valiadate server section
         assert "server" in config

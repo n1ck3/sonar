@@ -44,7 +44,9 @@ msg_queue = Queue(1)
 class SonarServer(object):
     def __init__(self, msg_queue):
         self.config = read_config()
-        self.cache_dir = os.path.join(self.config["sonar"]["tmp_dir"], "cache")
+        self.sonar_dir = os.path.join(self.config["sonar"]["sonar_dir"])
+        self.cache_dir = os.path.join(self.sonar_dir, "cache")
+        os.makedirs(self.sonar_dir, exist_ok=True)
         os.makedirs(self.cache_dir, exist_ok=True)
 
         try:
@@ -504,7 +506,7 @@ class SonarServer(object):
 class PlayerThread(threading.Thread):
     def __init__(self, subsonic, msg_queue):
         self.config = read_config()
-        self.cache_dir = os.path.join(self.config["sonar"]["tmp_dir"], "cache")
+        self.cache_dir = os.path.join(self.config["sonar"]["sonar_dir"], "cache")
 
         subsonic = Subsonic()
         self.subsonic = subsonic.connection
@@ -614,11 +616,11 @@ if __name__ == "__main__":
     args = docopt(__doc__, version=__version__)
 
     config = read_config()
+    sonar_dir = os.path.join(config["sonar"]["sonar_dir"])
+    os.makedirs(sonar_dir, exist_ok=True)
 
     # Check if another instance of sonar-server is running.
-    pidpath = config["sonar"]["tmp_dir"]
-    os.makedirs(pidpath, exist_ok=True)
-    pidfile = os.path.join(pidpath, "sonar-server.pid")
+    pidfile = os.path.join(sonar_dir, "sonar-server.pid")
     pid = str(os.getpid())
     if os.path.isfile(pidfile):
         # Hmm, pidfile already exists. Either it is already running
