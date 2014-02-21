@@ -4,15 +4,12 @@
 Sonar Server
 
 Usage:
-    sonar-server.py
-
-    sonar-server.py (-h | --help)
-    sonar-server.py (-v | --verbose)
-    sonar-server.py --version
+    sonar-server.py [options]
 
 Options:
     -h --help                   Shows this screen
-    -v --verbose                Verbose output (i.e. show debug)
+    -l --loglevel LOGLEVEL      Set the loglevel [default: info]
+                                critical, error, warning, info, debug
     --version                   Show version
 
 """
@@ -26,6 +23,7 @@ import os
 import sys
 import time
 import socket
+import logging
 import json
 import threading
 from operator import itemgetter
@@ -34,11 +32,18 @@ from queue import Queue
 
 from libsonar import Subsonic
 from libsonar import read_config
-from libsonar import debug
 
 from mplayer import Player as MPlayer
 
 msg_queue = Queue(1)
+
+
+LOGFORMAT = '%(asctime)s %(levelname)s - %(message)s'
+logging.basicConfig(
+    format=LOGFORMAT,
+    datefmt='%m-%d %H:%M'
+)
+logger = logging.getLogger(__name__)
 
 
 class SonarServer(object):
@@ -74,7 +79,7 @@ class SonarServer(object):
         self.msg_queue = msg_queue
 
     def _start_server(self):
-        debug("Starting server")
+        logger.info("Starting server")
 
         operations = (
             "status",
@@ -114,13 +119,13 @@ class SonarServer(object):
 
             if conn:
                 # There is a connection made by the client in this iteration!
-                debug("Connected by %s (pid: %s)" % addr)
+                logger.debug("Connected by %s (pid: %s)" % addr)
                 data = conn.recv(102400)
 
                 try:
                     # Try to handle the request.
                     data = str(data.decode("utf-8"))
-                    debug("Got request: %s" % data)
+                    logger.info("Got request: %s" % data)
                     request = json.loads(data)
 
                     if "operation" in request:
@@ -232,7 +237,7 @@ class SonarServer(object):
 
                     # Send the response to the client.
                     response = json.dumps(ret)
-                    debug("Returning response: %s" % response)
+                    logger.info("Returning response: %s" % response)
                     conn.sendall(response.encode("utf-8"))
 
                     conn.close()
@@ -268,7 +273,7 @@ class SonarServer(object):
                 try:
                     result = self.subsonic.getArtist(a["id"])
                 except:
-                    debug("ERROR: Could not find artist: %s" % a["id"])
+                    logger.warning("Could not find artist: %s" % a["id"])
                     continue
 
                 artist = {}
@@ -289,7 +294,7 @@ class SonarServer(object):
                 try:
                     result = self.subsonic.getAlbum(a["id"])
                 except:
-                    debug("ERROR: Could not find album: %s" % a["id"])
+                    logger.warning("Could not find album: %s" % a["id"])
                     continue
 
                 album = {}
@@ -308,7 +313,7 @@ class SonarServer(object):
                 try:
                     result = self.subsonic.getSong(s["id"])
                 except:
-                    debug("ERROR: Could not find song: %s" % s["id"])
+                    logger.warning("Could not find song: %s" % s["id"])
                     continue
 
                 if "song" in result:
@@ -463,7 +468,7 @@ class SonarServer(object):
             self.queue = []
             self.stop()
         else:
-            debug("Removing from queue is not implement yet.")
+            logger.warning("Removing from queue is not implement yet.")
 
     def shuffle_queue(self):
         if self.queue:
@@ -506,11 +511,16 @@ class SonarServer(object):
 class PlayerThread(threading.Thread):
     def __init__(self, subsonic, msg_queue):
         self.config = read_config()
-        self.cache_dir = os.path.join(self.config["sonar"]["sonar_dir"], "cache")
+        self.cache_dir = os.path.join(
+            self.config["sonar"]["sonar_dir"],
+            "cache"
+        )
 
         subsonic = Subsonic()
         self.subsonic = subsonic.connection
-        self.mplayer = MPlayer(args=("-really-quiet", "-msglevel", "global=6"))
+        self.mplayer = MPlayer(
+            args=("-really-quiet", "-msglevel", "global=6", "-nolirc")
+        )
         self.mplayer.stdout.connect(self._handle_data)
 
         self.msg_queue = msg_queue
@@ -614,6 +624,16 @@ class PlayerThread(threading.Thread):
 
 if __name__ == "__main__":
     args = docopt(__doc__, version=__version__)
+
+    ###
+    ## Set loglevel
+    ###
+    loglevels = ["critical", "error", "warning", "info", "debug"]
+    if "--loglevel" in args and args["--loglevel"] in loglevels:
+        logger.setLevel(getattr(logging, args["--loglevel"].upper()))
+    else:
+        logger.critical("Invalid loglevel. Exiting...")
+        sys.exit(1)
 
     config = read_config()
     sonar_dir = os.path.join(config["sonar"]["sonar_dir"])

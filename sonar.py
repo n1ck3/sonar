@@ -13,8 +13,19 @@ Usage:
     sonar.py (stop | s) [options]
     sonar.py ((previous | prev | p) | (next | n)) [options]
     sonar.py ((rewind | rw) | (fastforward | ff)) [TIMEDELTA] [options]
-    sonar.py (repeat | r) [on | off] [options]
-    sonar.py (queue | q) [(shuffle | x) | (sort | s)|[[(set | s)|(prepend | first | p)|(append | add | last | a)|(remove | clear | c)] INDEX...]] [options]
+    sonar.py (queue | q) [
+        (repeat | r) [on | off] |
+        (shuffle | x) |
+        (sort | o) |
+        [
+            [
+                (set | s) |
+                (prepend | first | p) |
+                (append | add | last | a) |
+                (remove | clear | c)
+            ] INDEX...
+        ]
+    ] [options]
     sonar.py [status] [options]
 
 Options:
@@ -22,7 +33,8 @@ Options:
     -h --help                   Shows this screen
     -s --short                  One line output
     -sb --statusbar             JSON output that can be used by statusbars
-    -v --verbose                Verbose output (i.e. show debug)
+    -l --loglevel LOGLEVEL      Set the loglevel [default: warning]
+                                critical, error, warning, info, debug
     --version                   Show version
 
 """
@@ -37,20 +49,29 @@ import sys
 import socket
 import json
 import datetime
+import logging
 from html.parser import HTMLParser
 
 from libsonar import Subsonic
 from libsonar import read_config
-from libsonar import debug
+
+
+LOGFORMAT = '%(asctime)s %(levelname)s - %(message)s'
+logging.basicConfig(
+    format=LOGFORMAT,
+    datefmt='%m-%d %H:%M'
+)
+logger = logging.getLogger(__name__)
 
 
 class SonarClient(object):
     def __init__(self, subsonic):
-        self.DEBUG = False
         self.config = read_config()
+
         self.sonar_dir = os.path.join(self.config["sonar"]["sonar_dir"])
-        self.cache_dir = os.path.join(self.sonar_dir, "cache")
         os.makedirs(self.sonar_dir, exist_ok=True)
+
+        self.cache_dir = os.path.join(self.sonar_dir, "cache")
         os.makedirs(self.cache_dir, exist_ok=True)
 
         self.subsonic = subsonic.connection
@@ -58,8 +79,7 @@ class SonarClient(object):
         self.cached_results = os.path.join(self.cache_dir, "results.cache")
 
     def _socket_send(self, data):
-        if self.DEBUG:
-            print("\n > Debug: %s \n" % data)
+        logger.debug("Sending data: %s" % data)
 
         self.socket.connect((
             self.config['server']['host'],
@@ -500,12 +520,20 @@ if __name__ == "__main__":
     args = docopt(__doc__, version=__version__)
 
     ###
+    ## Set loglevel
+    ###
+    loglevels = ["critical", "error", "warning", "info", "debug"]
+    if "--loglevel" in args and args["--loglevel"] in loglevels:
+        logger.setLevel(getattr(logging, args["--loglevel"].upper()))
+    else:
+        logger.critical("Invalid loglevel. Exiting...")
+        sys.exit(1)
+
+    ###
     ##  Instatiate classes
     ###
     subsonic = Subsonic()
     client = SonarClient(subsonic)
-    if "--verbose" in args and args["--verbose"]:
-        client.DEBUG = True
 
     ###
     ##  Fix defaults and fallbacks
@@ -523,18 +551,18 @@ if __name__ == "__main__":
             for idx in range(len(args["INDEX"])):
                 args["INDEX"][idx] = int(args["INDEX"][idx])
         except Exception as e:
-            debug(str(e))
+            logger.debug(str(e))
             print("\nYou have to supply a list of integer indeces.\n")
-            sys.exit(0)
+            sys.exit(1)
 
     # If TIMEDELTA is in args, make sure it is an int.
     if "TIMEDELTA" in args and args["TIMEDELTA"]:
         try:
             args["TIMEDELTA"] = int(args["TIMEDELTA"])
         except Exception as e:
-            debug(str(e))
+            logger.debug(str(e))
             print("\nThe time delta needs to be an integer.\n")
-            sys.exit(0)
+            sys.exit(1)
     else:
         args["TIMEDELTA"] = 10
 

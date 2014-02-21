@@ -1,32 +1,10 @@
 import os
 import sys
-import datetime
 import configparser
 import json
 from urllib.error import HTTPError
 
 from pysonic.libsonic.connection import Connection
-
-
-def pretty(data, indent=2):
-    print(
-        json.dumps(
-            (data),
-            sort_keys=True,
-            indent=indent
-        )
-    )
-
-
-def debug(data):
-    date_string = datetime.datetime.now().strftime("%H:%M:%S")
-    if isinstance(data, str):
-        print("[debug %s] %s" % (date_string, data))
-    else:
-        print("[debug %s] %s" % (
-            date_string,
-            json.dumps((data), sort_keys=True)
-        ))
 
 
 def read_config():
