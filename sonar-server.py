@@ -85,7 +85,6 @@ class SonarServer(object):
             "status",
             "play",
             "pause",
-            "playpause",
             "stop",
             "previous_song",
             "next_song",
@@ -149,11 +148,6 @@ class SonarServer(object):
                             elif operation in ["pause"]:
                                 threading.Thread(
                                     target=self.pause
-                                ).start()
-
-                            elif operation in ["playpause"]:
-                                threading.Thread(
-                                    target=self.playpause
                                 ).start()
 
                             elif operation == "stop":
@@ -266,6 +260,7 @@ class SonarServer(object):
         artists = data.get("artist", [])
         albums = data.get("album", [])
         songs = data.get("song", [])
+        playlists = data.get("playlists", [])
 
         if len(artists) > 0:
             # order_by_track_number = True
@@ -319,6 +314,18 @@ class SonarServer(object):
                 if "song" in result:
                     queue.append(result["song"])
 
+        if len(playlists) > 0:
+            for p in playlists:
+                try:
+                    result = self.subsonic.getPlaylist(p["id"])
+                except:
+                    logger.warning("Could not find playlist: %s" % p["id"])
+                    continue
+
+                logger.critical(result)
+                songs = result.get("playlist", {}).get("entry", [])
+                queue += songs
+
         return queue
 
     def _sort_queue(self, queue):
@@ -331,6 +338,47 @@ class SonarServer(object):
             ret = queue
         return ret
 
+    def _determine_prev_song(self):
+        if self.queue and isinstance(self.current_song, int):
+            queue_index = self.current_song-1
+            prev_song = None
+            if self.repeat and queue_index < 0:
+                prev_song = len(self.queue)-1
+            else:
+                if queue_index >= 0:
+                    prev_song = queue_index
+
+            if isinstance(prev_song, int):
+                return True, prev_song
+
+        logger.warning("Could not determine previous song.")
+        return False, ""
+
+    def _determine_next_song(self):
+        if self.queue and isinstance(self.current_song, int):
+            queue_index = self.current_song+1
+            next_song = None
+            if self.repeat and queue_index >= len(self.queue):
+                next_song = 0
+            else:
+                if queue_index < len(self.queue):
+                    next_song = queue_index
+
+            if isinstance(next_song, int):
+                return True, next_song
+
+        logger.warn("Could not determine next song in queue.")
+        return False, ""
+
+    def _prefetch_next_song(self):
+        success, next_song = self._determine_next_song()
+        if success:
+            s_id = self.queue[next_song]["id"]
+            logger.info("Prefetching next song: %s" % s_id)
+            self.player._get_song(s_id)
+        else:
+            return False, "Could not prefetch next song."
+
     def _play_song(self, queue_index):
         if not self.queue:
             # Just return if there is no queue
@@ -342,6 +390,7 @@ class SonarServer(object):
             self.current_song = queue_index
             s_id = self.queue[queue_index]["id"]
             self.player.play_song(s_id)
+            threading.Thread(target=self._prefetch_next_song).start()
             return True, ""
 
         return False, "Index not in queue: %s" % queue_index
@@ -361,7 +410,7 @@ class SonarServer(object):
         elif self.player.is_paused():
             # If player is paused If there is already
             # a song playing. Press play.
-            self.player.playpause()
+            self.player.pause()
 
         elif len(self.queue) > 0:
             # OK then. Nothing is playing, let's play
@@ -373,45 +422,25 @@ class SonarServer(object):
             return True, ""
 
     def play_previous_song(self):
-        if self.queue and isinstance(self.current_song, int):
-            queue_index = self.current_song-1
-            prev_song = None
-            if self.repeat and queue_index < 0:
-                prev_song = len(self.queue)-1
-            else:
-                if queue_index >= 0:
-                    prev_song = queue_index
-
-            if isinstance(prev_song, int):
-                self._play_song(prev_song)
-                return True, ""
-
-        self.stop()
-        return False, "Could not play previous song."
+        success, prev_song = self._determine_prev_song()
+        if success:
+            self._play_song(prev_song)
+            return True, ""
+        else:
+            self.stop()
+            return False, "Could not play previous song."
 
     def play_next_song(self):
-        if self.queue and isinstance(self.current_song, int):
-            queue_index = self.current_song+1
-            next_song = None
-            if self.repeat and queue_index >= len(self.queue):
-                next_song = 0
-            else:
-                if queue_index < len(self.queue):
-                    next_song = queue_index
-
-            if isinstance(next_song, int):
-                self._play_song(next_song)
-                return True, ""
-
-        self.stop()
-        return False, "Could not play next song."
+        success, next_song = self._determine_next_song()
+        if success:
+            self._play_song(next_song)
+            return True, ""
+        else:
+            self.stop()
+            return False, "Could not play next song."
 
     def pause(self):
-        if self.player.is_playing():
-            self.player.playpause()
-
-    def playpause(self):
-        self.player.playpause()
+        self.player.pause()
 
     def stop(self):
         self.player.stop()
@@ -539,27 +568,8 @@ class PlayerThread(threading.Thread):
     def _get_stream(self, song_id):
         return self.subsonic.stream(song_id)
 
-    def progress(self):
-        ret = None
-        if self.mplayer.time_pos:
-            try:
-                ret = {
-                    "percent": self.mplayer.percent_pos,
-                    "time": int(self.mplayer.time_pos),
-                    "length": int(self.mplayer.length),
-                }
-            except:
-                ret = {
-                    "percent": 0,
-                    "time": 0,
-                    "length": 0,
-                }
-        return ret
-
-    def play_song(self, song_id):
+    def _get_song(self, song_id):
         song_file = os.path.join(self.cache_dir, "%s.mp3" % song_id)
-
-        # If not already cached. Download it.
         if not os.path.exists(song_file):
             if not os.path.exists(self.cache_dir):
                 os.makedirs(self.cache_dir)
@@ -567,8 +577,12 @@ class PlayerThread(threading.Thread):
             f = open(song_file, "wb")
             f.write(stream.read())
             f.close()
+        return song_file
 
-        self.mplayer.stop()
+    def play_song(self, song_id):
+        song_file = self._get_song(song_id)
+
+        # self.mplayer.stop()
         # time.sleep(0.1)  # Hacky, but needed to work.. :(
         self.mplayer.loadfile(song_file)
         # time.sleep(0.1)  # Hacky, but needed to work.. :(
@@ -579,10 +593,6 @@ class PlayerThread(threading.Thread):
             self.mplayer.pause()
 
     def pause(self):
-        if self.is_playing():
-            self.mplayer.pause()
-
-    def playpause(self):
         self.mplayer.pause()
 
     def stop(self):
@@ -618,6 +628,23 @@ class PlayerThread(threading.Thread):
 
     def is_stopped(self):
         return bool(not self.mplayer.filename)
+
+    def progress(self):
+        ret = None
+        if self.mplayer.time_pos:
+            try:
+                ret = {
+                    "percent": self.mplayer.percent_pos,
+                    "time": int(self.mplayer.time_pos),
+                    "length": int(self.mplayer.length),
+                }
+            except:
+                ret = {
+                    "percent": 0,
+                    "time": 0,
+                    "length": 0,
+                }
+        return ret
 
     def quit(self):
         self.mplayer.quit()

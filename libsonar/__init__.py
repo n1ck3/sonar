@@ -18,6 +18,7 @@ def read_config():
         # Valiadate server section
         assert "sonar" in config
         assert "sonar_dir" in config["sonar"]
+        assert "prefetch_next_song" in config["sonar"]
 
         # Valiadate server section
         assert "server" in config

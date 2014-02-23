@@ -4,27 +4,20 @@
 Sonar Client
 
 Usage:
-    sonar.py (search | s) [(artist|album|song) SEARCH_STRING...] [options]
-    sonar.py (random | x) [album|song] [options]
-    sonar.py (last | list | l) [options]
-    sonar.py (play) [INDEX] [options]
-    sonar.py (pause) [options]
-    sonar.py (playpause | pp) [options]
-    sonar.py (stop | s) [options]
-    sonar.py ((previous | prev | p) | (next | n)) [options]
-    sonar.py ((rewind | rw) | (fastforward | ff)) [TIMEDELTA] [options]
+    sonar.py search [artist | album | song] (SEARCH_STRING...) [options]
+    sonar.py playlists [options]
+    sonar.py random [album | song] [options]
+    sonar.py last [options]
+    sonar.py play [INDEX...] [options]
+    sonar.py pause [options]
+    sonar.py stop [options]
+    sonar.py (previous | next) [options]
+    sonar.py (rw | ff) [TIMEDELTA] [options]
     sonar.py (queue | q) [
-        (repeat | r) [on | off] |
-        (shuffle | x) |
-        (sort | o) |
-        [
-            [
-                (set | s) |
-                (prepend | first | p) |
-                (append | add | last | a) |
-                (remove | clear | c)
-            ] INDEX...
-        ]
+        repeat [on | off] |
+        shuffle |
+        sort |
+        ( set | prepend | add | remove) [INDEX...]
     ] [options]
     sonar.py [status] [options]
 
@@ -34,7 +27,7 @@ Options:
     -s --short                  One line output
     -sb --statusbar             JSON output that can be used by statusbars
     -l --loglevel LOGLEVEL      Set the loglevel [default: warning]
-                                critical, error, warning, info, debug
+                                (critical | error | warning | info | debug)
     --version                   Show version
 
 """
@@ -100,7 +93,7 @@ class SonarClient(object):
         return response_data
 
     def _format_results(self, results):
-        for kind in ["artist", "album", "song"]:
+        for kind in ["artist", "album", "song", "playlists"]:
             if kind in results and not isinstance(results[kind], list):
                 results[kind] = [results[kind]]
         return results
@@ -124,12 +117,13 @@ class SonarClient(object):
         data = {
             "artist": [],
             "album": [],
-            "song": []
+            "song": [],
+            "playlists": []
         }
 
         if not res_list or len(res_list) == 0:
             print("\nNo result list found... Make a search first.\n")
-            sys.exit(0)
+            sys.exit(1)
 
         if "artist" in res_list and len(res_list["artist"]) > 0:
             if isinstance(idxs, list) and len(idxs) == 1 and idxs[0] == -1:
@@ -173,6 +167,20 @@ class SonarClient(object):
                     "artist": song["artist"]
                 })
 
+        if "playlists" in res_list and len(res_list["playlists"]) > 0:
+            logger.info("playlist")
+            if isinstance(idxs, list) and len(idxs) == 1 and idxs[0] == -1:
+                idxs = []
+            elif len(idxs) == 0:
+                idxs = range(0, len(res_list["playlist"]))
+
+            for idx in idxs:
+                playlist = res_list["playlists"][idx]
+                data["playlists"].append({
+                    "id": playlist["id"],
+                    'playlist': playlist["name"]
+                })
+
         return data
 
     def _print(self, data, end="\n"):
@@ -191,6 +199,8 @@ class SonarClient(object):
             self._print_albums(results["album"])
         elif "song" in results and len(results["song"]) > 0:
             self._print_songs(results['song'])
+        elif "playlists" in results and len(results["playlists"]) > 0:
+            self._print_playlists(results['playlists'])
         else:
             print("\nNo results...\n")
 
@@ -198,7 +208,7 @@ class SonarClient(object):
         if type(artists) == dict:
             artists = [artists]
 
-        print()
+        print("\n* Artists *")
         idx = 0
         for artist in artists:
             self._print("%s: %s [ID: %s]" % (
@@ -213,7 +223,7 @@ class SonarClient(object):
         if type(albums) == dict:
             albums = [albums]
 
-        print()
+        print("\n* Albums *")
         idx = 0
         for album in albums:
             album_name = album.get(
@@ -236,7 +246,7 @@ class SonarClient(object):
         if type(songs) == dict:
             songs = [songs]
 
-        print()
+        print("\n* Songs *")
         idx = 0
         for song in songs:
             self._print("%s: %s (%s) [ID: %s]" % (
@@ -244,6 +254,19 @@ class SonarClient(object):
                 song['title'],
                 song['artist'],
                 song['id']
+            ))
+            idx += 1
+        print()
+
+    def _print_playlists(self, playlists):
+        print("\n* Playlists *")
+        idx = 0
+        for playlist in playlists:
+            self._print("%s: %s (%s) [ID: %s]" % (
+                idx,
+                playlist['name'],
+                playlist['songCount'],
+                playlist['id']
             ))
             idx += 1
         print()
@@ -308,6 +331,16 @@ class SonarClient(object):
             if "song" in res["searchResult3"]:
                 ret["song"] = res["searchResult3"]["song"]
 
+        return self._format_results(ret)
+
+    def list_playlists(self, args):
+        res = self.get_playlists(args)
+        self._cache_results(res)
+        self._print_results(res)
+
+    def get_playlists(self, args):
+        res = self.subsonic.getPlaylists()
+        ret = {"playlists": res.get("playlists", {}).get("playlist", [])}
         return self._format_results(ret)
 
     def status(self, args):
@@ -569,73 +602,52 @@ if __name__ == "__main__":
     ###
     ##  Main arg handler
     ###
-    if "search" in args and args["search"] or \
-            "s" in args and args["s"]:
+    if args.get("search", False):
         client.search(args)
-    elif "random" in args and args["random"] or \
-            "x" in args and args["x"]:
+    if args.get("playlists", False):
+        client.list_playlists(args)
+    elif args.get("random"):
         client.random(args)
-    elif "list" in args and args["list"] or \
-            "last" in args and args["last"] or \
-            "l" in args and args["l"]:
+    elif args.get("last"):
         client._print_results()
-    elif "play" in args and args["play"]:
+    elif args.get("play"):
         client.play(args)
-    elif "pause" in args and args["pause"]:
+    elif args.get("pause"):
         client.pause()
-    elif "playpause" in args and args["playpause"] or \
-            "pp" and args["pp"]:
-        client.playpause()
-    elif "stop" in args and args["stop"] or \
-            "s" and args["s"]:
+    elif args.get("stop"):
         client.stop()
-    elif "previous" in args and args["previous"] or \
-            "prev" in args and args["prev"] or \
-            "p" and args["p"]:
+    elif args.get("previous"):
         client.previous_song()
-    elif "next" in args and args["next"] or \
-            "n" and args["n"]:
+    elif args.get("next"):
         client.next_song()
-    elif "repeat" in args and args["repeat"] or \
-            "r" and args["r"]:
-        client.repeat(args)
-    elif "rewind" in args and args["rewind"] or \
-            "rw" in args and args["rw"]:
-        args["TIMEDELTA"] = -args["TIMEDELTA"]
+    elif args.get("rw"):
+        args["TIMESELTA"] = -args.get("TIMEDELTA", 5)
         client.seek(args)
-    elif "fastforward" in args and args["fastforward"] or \
-            "ff" in args and args["ff"]:
+    elif args.get("ff"):
         client.seek(args)
-    elif "queue" in args and args["queue"] or \
-            "q" in args and args["q"]:
-        if "shuffle" in args and args["shuffle"] or \
-                "x" in args and args["x"]:
+    elif args.get("queue") or args.get("q"):
+        if args.get("shuffle"):
             client.shuffle(args)
-        elif "sort" in args and args["sort"] or \
-                "o" in args and args["o"]:
+        elif args.get("repeat"):
+            client.repeat(args)
+        elif args.get("sort"):
             client.sort_queue(args)
-        elif "set" in args and args["set"] or \
-                "s" in args and args["s"]:
+        elif args.get("set"):
             client.set_queue(args)
-        elif "prepend" in args and args["prepend"] or \
-                "first" in args and args["first"] or \
-                "p" in args and args["p"]:
+        elif args.get("prepend"):
             client.prepend_queue(args)
-        elif "append" in args and args["append"] or \
-                "add" in args and args["add"] or \
-                "last" in args and args["last"] or \
-                "a" in args and args["a"]:
+        elif args["add"]:
             client.append_queue(args)
-        elif "remove" in args and args["remove"] or \
-                "clear" in args and args["clear"] or \
-                "c" in args and args["c"]:
-            if "INDEX" in args and len(args["INDEX"]) == 0:
-                args["INDEX"] = [-1]  # Make sure we are setting queue to empty
+        elif args.get("remove"):
+            args["INDEX"] = args.get("INDEX", [])
+            if len(args["INDEX"]) == 0:
+                # Make sure we are setting queue to empty
+                args["INDEX"] = [-1]
             client.remove_from_queue(args)
         else:
             # Default to show queue
             client.show_queue()
-    elif "status" in args and args["status"] or True:
+    elif args.get("status") or True:
         # Assume the user wants to know the status of what
         # is being played at the moment.
         client.status(args)
