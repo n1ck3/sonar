@@ -9,7 +9,7 @@ Usage:
 Options:
     -h --help                   Shows this screen
     -l --loglevel LOGLEVEL      Set the loglevel [default: info]
-                                critical, error, warning, info, debug
+                                (critical | error | warning | info | debug)
     --version                   Show version
 
 """
@@ -139,7 +139,7 @@ class SonarServer(object):
                                 ret['current_song'] = self.status()
 
                             elif operation == "play":
-                                queue_index = request.get("queue_index", 0)
+                                queue_index = request.get("queue_index", None)
                                 threading.Thread(
                                     target=self.play,
                                     args=(queue_index,)
@@ -413,9 +413,9 @@ class SonarServer(object):
             self.player.pause()
 
         elif len(self.queue) > 0:
-            # OK then. Nothing is playing, let's play
-            # the first song in the queue.
-            # self.current_song = 0
+            # OK then. Nothing is playing, let's try to
+            # play the current_song in the queue, otherwise
+            # default to the first song in the queue.
             if not self.current_song:
                 self.current_song = 0
             self._play_song(self.current_song)
@@ -526,12 +526,19 @@ class SonarServer(object):
         if not isinstance(self.current_song, int):
             return None
 
+        downloading = False
+        if self.queue[self.current_song]["id"] in self.player.download_queue:
+            downloading = True
+
         ret = {
+            "queue_length": len(self.queue),
+            "queue_position": self.current_song+1,
             "song": self.queue[self.current_song],
             "player_state": self.player.player_state(),
             "progress": self.player.progress(),
             "shuffle": self.shuffle,
-            "repeat": self.repeat
+            "repeat": self.repeat,
+            "downloading": downloading
         }
 
         return ret
@@ -544,6 +551,8 @@ class PlayerThread(threading.Thread):
             self.config["sonar"]["sonar_dir"],
             "cache"
         )
+
+        self.download_queue = []
 
         subsonic = Subsonic()
         self.subsonic = subsonic.connection
@@ -571,22 +580,44 @@ class PlayerThread(threading.Thread):
     def _get_song(self, song_id):
         song_file = os.path.join(self.cache_dir, "%s.mp3" % song_id)
         if not os.path.exists(song_file):
+            # Check if file already exists in cache
             if not os.path.exists(self.cache_dir):
+                # Make sure the cache dir is present.
                 os.makedirs(self.cache_dir)
-            stream = self._get_stream(song_id)
-            f = open(song_file, "wb")
-            f.write(stream.read())
-            f.close()
+            if not song_id in self.download_queue:
+                # Check if the song is not already downloading
+                logger.debug("Downloading song with id: %s" % song_id)
+                self.download_queue.append(song_id)
+                try:
+                    stream = self._get_stream(song_id)
+                    f = open(song_file, "wb")
+                    f.write(stream.read())
+                    f.close()
+                except Exception as e:
+                    logger.error(
+                        "Could not download song: %s - Error was: %s" % (
+                            song_id, e
+                        )
+                    )
+                self.download_queue = [
+                    x for x in self.download_queue if x != song_id
+                ]
+            else:
+                logger.info(
+                    "Song with id %s is already in download queue. \
+                    Skipping..." % song_id
+                )
+                # TODO: Handle this. Should we wait here for a little bit
+                # and see if it finishes downloading?
+                # At this point, if it clashes, it gets stuck in stopped state.
+
         return song_file
 
     def play_song(self, song_id):
         song_file = self._get_song(song_id)
-
-        # self.mplayer.stop()
-        # time.sleep(0.1)  # Hacky, but needed to work.. :(
+        self.mplayer.stop()
         self.mplayer.loadfile(song_file)
-        # time.sleep(0.1)  # Hacky, but needed to work.. :(
-        # self.mplayer.pause()
+        self.mplayer.pause()
 
     def play(self):
         if self.is_paused():

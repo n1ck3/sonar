@@ -353,15 +353,23 @@ class SonarClient(object):
             if "current_song" in result and result["current_song"]:
                 ct = result["current_song"]
 
-                currently_playing_string = ct["song"]["title"]
+                currently_playing_string = "[%s/%s] %s" % (
+                    ct["queue_position"],
+                    ct["queue_length"],
+                    ct["song"]["title"]
+                )
 
                 if "progress" in ct and ct["progress"]:
                     currently_playing_string += " (%s%%)" % (
                         ct["progress"]["percent"]
                     )
 
+                player_state_string = "[%s]" % ct["player_state"]
+                if ct.get("downloading"):
+                    player_state_string += " [Downloading]"
+
                 if "player_state" in ct:
-                    currently_playing_string += " [%s]" % ct["player_state"]
+                    currently_playing_string += " %s" % player_state_string
 
                 self._print(currently_playing_string)
         elif "--statusbar" in args and args["--statusbar"]:
@@ -373,8 +381,11 @@ class SonarClient(object):
                     "title": ct["song"]["title"],
                 },
                 "player": {
+                    "queue_position": ct["queue_position"],
+                    "queue_lenght": ct["queue_length"],
                     "state": ct["player_state"],
-                    "repeat": ct["repeat"]
+                    "repeat": ct["repeat"],
+                    "downloading": ct["downloading"]
                 }
             }
             if "progress" in ct and ct["progress"]:
@@ -393,7 +404,9 @@ class SonarClient(object):
             if "current_song" in result and result["current_song"]:
                 ct = result["current_song"]
 
-                currently_playing_string = "\n%s - %s (%s)" % (
+                currently_playing_string = "\n[%s/%s] %s - %s (%s)" % (
+                    ct["queue_position"],
+                    ct["queue_length"],
                     ct["song"]["artist"],
                     ct["song"]["title"],
                     ct["song"]["album"]
@@ -412,6 +425,9 @@ class SonarClient(object):
 
                 if "repeat" in ct and ct["repeat"]:
                     progress_list.append("[Repeat]")
+
+                if "downloading" in ct and ct["downloading"]:
+                    progress_list.append("[Downloading]")
 
                 self._print(currently_playing_string)
 
