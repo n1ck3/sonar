@@ -26,6 +26,7 @@ import socket
 import logging
 import json
 import threading
+from sys import platform
 from operator import itemgetter
 from random import shuffle
 from queue import Queue
@@ -617,7 +618,12 @@ class PlayerThread(threading.Thread):
         song_file = self._get_song(song_id)
         self.mplayer.stop()
         self.mplayer.loadfile(song_file)
-        self.mplayer.pause()
+
+        # Hacky, but needed to work. Check if Linux, if so also
+        # play the file after loading it. On OS X, pressing play
+        # is not needed.
+        if "linux" in platform:
+            self.mplayer.pause()
 
     def play(self):
         if self.is_paused():
