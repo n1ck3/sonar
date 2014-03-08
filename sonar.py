@@ -9,7 +9,7 @@ Usage:
     sonar.py random [album | song] [options]
     sonar.py last [options]
     sonar.py play [INDEX...] [options]
-    sonar.py pause [options]
+    sonar.py (pause | p) [options]
     sonar.py stop [options]
     sonar.py (previous | next) [options]
     sonar.py (rw | ff) [TIMEDELTA] [options]
@@ -199,7 +199,11 @@ class SonarClient(object):
         elif "album" in results and len(results["album"]) > 0:
             self._print_albums(results["album"])
         elif "song" in results and len(results["song"]) > 0:
-            self._print_songs(results['song'])
+            self._print_songs(
+                results['song'],
+                results.get("current_song", 0),
+                results.get("player_state", None)
+            )
         elif "playlists" in results and len(results["playlists"]) > 0:
             self._print_playlists(results['playlists'])
         else:
@@ -243,19 +247,32 @@ class SonarClient(object):
             idx += 1
         print()
 
-    def _print_songs(self, songs):
+    def _print_songs(self, songs, current_song=0, player_state=None):
         if type(songs) == dict:
             songs = [songs]
 
         print("\n* Songs *")
         idx = 0
         for song in songs:
-            self._print("%s: %s (%s) [ID: %s]" % (
+            song_string = "%s: %s (%s) [ID: %s]" % (
                 idx,
                 song['title'],
                 song['artist'],
                 song['id']
-            ))
+            )
+
+            # Bells and whistles: Highlight current song in queue and colorize
+            # if player_state is paused or playing.
+            if current_song == idx:
+                color = "white"
+                if player_state == "Paused":
+                    color = "yellow"
+                elif player_state == "Playing":
+                    color = "green"
+
+                song_string = self._colorize(song_string, color)
+
+            self._print(song_string)
             idx += 1
         print()
 
@@ -278,8 +295,9 @@ class SonarClient(object):
 
     def _colorize(self, string="", color=None):
         colors = {
-            "green": "\033[1;92m",
             "red": "\033[1;91m",
+            "green": "\033[1;92m",
+            "yellow": "\033[1;93m",
             "magenta": "\033[1;95m",
             "white": "\033[1;97m"
         }
@@ -391,7 +409,7 @@ class SonarClient(object):
                         if ct["player_state"] == "Stopped":
                             color = "red"
                         elif ct["player_state"] == "Paused":
-                            color = "white"
+                            color = "yellow"
                         elif ct["player_state"] == "Playing":
                             color = "green"
                         progress_list.append(
@@ -467,7 +485,7 @@ class SonarClient(object):
                         if ct["player_state"] == "Stopped":
                             color = "red"
                         elif ct["player_state"] == "Paused":
-                            color = "white"
+                            color = "yellow"
                         elif ct["player_state"] == "Playing":
                             color = "green"
                         progress_list.append(
@@ -589,7 +607,11 @@ class SonarClient(object):
             songs = []
             for item in result["queue"]:
                 songs.append(item)
-            self._print_results({"song": songs})
+            self._print_results({
+                "song": songs,
+                "current_song": result.get("current_song", 0),
+                "player_state": result.get("player_state", None)
+            })
         else:
             print("\nQueue is empty.\n")
 
@@ -689,7 +711,7 @@ if __name__ == "__main__":
         client._print_results()
     elif args.get("play"):
         client.play(args)
-    elif args.get("pause"):
+    elif args.get("pause") or args.get("p"):
         client.pause()
     elif args.get("stop"):
         client.stop()

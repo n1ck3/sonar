@@ -219,7 +219,11 @@ class SonarServer(object):
                                 ).start()
 
                             elif operation == "show_queue":
-                                ret['queue'] = self.queue
+                                ret = {
+                                    'queue': self.queue,
+                                    'current_song': self.current_song,
+                                    "player_state": self.player.player_state()
+                                }
 
                         else:
                             # The request operation was not found in the list
