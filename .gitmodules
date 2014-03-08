@@ -1,9 +1,9 @@
 [submodule "modules/mplayer"]
 	path = modules/mplayer
 	url = git://github.com/baudm/mplayer.py.git
-[submodule "modules/pysonic"]
-	path = modules/pysonic
-	url = git://github.com/n1ck3/py-sonic.git
 [submodule "modules/docopt"]
 	path = modules/docopt
 	url = git://github.com/docopt/docopt.git
+[submodule "py-sonic"]
+	path = modules/pysonic
+	url = https://github.com/crustymonkey/py-sonic.git
