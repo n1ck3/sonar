@@ -199,8 +199,10 @@ class SonarClient(object):
         elif "album" in results and len(results["album"]) > 0:
             self._print_albums(results["album"])
         elif "song" in results and len(results["song"]) > 0:
-            self._print_songs(
-                results['song'],
+                self._print_songs(results['song'])
+        elif "queue" in results and len(results["queue"]) > 0:
+            self._print_queue(
+                results['queue'],
                 results.get("current_song", 0),
                 results.get("player_state", None)
             )
@@ -213,7 +215,7 @@ class SonarClient(object):
         if type(artists) == dict:
             artists = [artists]
 
-        print("\n* Artists *")
+        print(self._colorize("\n* Artists *\n", "white"))
         idx = 0
         for artist in artists:
             self._print("%s: %s [ID: %s]" % (
@@ -228,7 +230,7 @@ class SonarClient(object):
         if type(albums) == dict:
             albums = [albums]
 
-        print("\n* Albums *")
+        print(self._colorize("\n* Albums *\n", "white"))
         idx = 0
         for album in albums:
             album_name = album.get(
@@ -247,11 +249,27 @@ class SonarClient(object):
             idx += 1
         print()
 
-    def _print_songs(self, songs, current_song=0, player_state=None):
+    def _print_songs(self, songs):
         if type(songs) == dict:
             songs = [songs]
 
-        print("\n* Songs *")
+        print(self._colorize("\n* Songs *\n", "white"))
+        idx = 0
+        for song in songs:
+            self._print("%s: %s (%s) [ID: %s]" % (
+                idx,
+                song['title'],
+                song['artist'],
+                song['id']
+            ))
+            idx += 1
+        print()
+
+    def _print_queue(self, songs, current_song=None, player_state=None):
+        if type(songs) == dict:
+            songs = [songs]
+
+        print(self._colorize("\n* Queue *\n", "white"))
         idx = 0
         for song in songs:
             song_string = "%s: %s (%s) [ID: %s]" % (
@@ -277,7 +295,7 @@ class SonarClient(object):
         print()
 
     def _print_playlists(self, playlists):
-        print("\n* Playlists *")
+        print(self._colorize("\n* Playlist *\n", "white"))
         idx = 0
         for playlist in playlists:
             self._print("%s: %s (%s) [ID: %s]" % (
@@ -608,10 +626,11 @@ class SonarClient(object):
             for item in result["queue"]:
                 songs.append(item)
             self._print_results({
-                "song": songs,
+                "queue": songs,
                 "current_song": result.get("current_song", 0),
                 "player_state": result.get("player_state", None)
             })
+
         else:
             print("\nQueue is empty.\n")
 
