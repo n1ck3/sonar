@@ -43,6 +43,7 @@ import socket
 import json
 import datetime
 import logging
+import glob
 from html.parser import HTMLParser
 
 from libsonar import Subsonic
@@ -112,6 +113,10 @@ class SonarClient(object):
         except:
             results = []
         return results
+
+    def _cached_songs(self):
+        cached_paths = glob.glob(os.path.join(client.cache_dir, "*.mp3"))
+        return [os.path.basename(x).replace(".mp3", "") for x in cached_paths]
 
     def _build_server_data(self, idxs):
         res_list = self._cached_results()
@@ -254,14 +259,19 @@ class SonarClient(object):
             songs = [songs]
 
         print(self._colorize("\n* Songs *\n", "white"))
+
+        cached_songs = self._cached_songs()
         idx = 0
         for song in songs:
-            self._print("%s: %s (%s) [ID: %s]" % (
+            song_string = "%s: %s (%s) [ID: %s]" % (
                 idx,
                 song['title'],
                 song['artist'],
                 song['id']
-            ))
+            )
+            if str(song['id']) in cached_songs:
+                song_string += " %s" % self._colorize("*", "green")
+            self._print(song_string)
             idx += 1
         print()
 
@@ -270,6 +280,8 @@ class SonarClient(object):
             songs = [songs]
 
         print(self._colorize("\n* Queue *\n", "white"))
+
+        cached_songs = self._cached_songs()
         idx = 0
         for song in songs:
             song_string = "%s: %s (%s) [ID: %s]" % (
@@ -289,6 +301,9 @@ class SonarClient(object):
                     color = "green"
 
                 song_string = self._colorize(song_string, color)
+
+            if str(song['id']) in cached_songs:
+                song_string += " %s" % self._colorize("*", "green")
 
             self._print(song_string)
             idx += 1
