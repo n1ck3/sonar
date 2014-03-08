@@ -335,6 +335,7 @@ class SonarServer(object):
                 queue,
                 key=itemgetter("artistId", "albumId", "discNumber", "track")
             )
+            self.shuffle = False
         except:
             ret = queue
         return ret
@@ -518,7 +519,6 @@ class SonarServer(object):
                 current_song_obj = self.queue[self.current_song]
 
             self.queue = self._sort_queue(self.queue)
-            self.shuffle = False
 
             try:
                 self.current_song = self.queue.index(current_song_obj)
@@ -754,12 +754,3 @@ if __name__ == "__main__":
             # The file doesn't exist. Whatever.
             pass
         sys.exit(0)
-
-    # if "search" in args and args["search"]:
-    #     client.get_search(args)
-    # elif "random" in args and args["random"]:
-    #     client.get_random(args)
-    # elif "play" in args and args["play"]:
-    #     player.play(song_id=args["SONG_ID"])
-    # elif "shell" in args and args["shell"]:
-    #     client.shell()

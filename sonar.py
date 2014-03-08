@@ -681,7 +681,7 @@ if __name__ == "__main__":
     ###
     if args.get("search", False):
         client.search(args)
-    if args.get("playlists", False):
+    elif args.get("playlists", False):
         client.list_playlists(args)
     elif args.get("random"):
         client.random(args)
