@@ -72,7 +72,6 @@ class SonarClient(object):
         self.cached_results = os.path.join(self.cache_dir, "results.cache")
 
     def _socket_send(self, data):
-        logger.debug("Sending data: %s" % data)
 
         self.socket.connect((
             self.config['server']['host'],
@@ -81,11 +80,13 @@ class SonarClient(object):
 
         request = json.dumps(data)
         self.socket.sendall(request.encode("utf-8"))
+        logger.debug("Sent data: %s" % data)
 
         response = self.socket.recv(102400)
         response = response.decode("utf-8")
 
         response_data = json.loads(response)
+        logger.debug("Received data: %s" % response_data)
         if "message" in response_data:
             print("\n%s\n" % response_data["message"])
 
@@ -275,6 +276,18 @@ class SonarClient(object):
         if isinstance(secs, int):
             return datetime.timedelta(seconds=secs)
 
+    def _colorize(self, string="", color=None):
+        colors = {
+            "green": "\033[1;92m",
+            "red": "\033[1;91m",
+            "magenta": "\033[1;95m",
+            "white": "\033[1;97m"
+        }
+        end_code = "\033[0m"
+        color_code = colors.get(color, end_code)
+
+        return "%s%s%s" % (color_code, string, end_code)
+
     def random(self, args):
         res = self.get_random(args)
         self._cache_results(res)
@@ -359,17 +372,44 @@ class SonarClient(object):
                     ct["song"]["title"]
                 )
 
-                if "progress" in ct and ct["progress"]:
-                    currently_playing_string += " (%s%%)" % (
-                        ct["progress"]["percent"]
-                    )
-
-                player_state_string = "[%s]" % ct["player_state"]
+                progress_list = []
                 if ct.get("downloading"):
-                    player_state_string += " [Downloading]"
+                    # If Downloading, we do not want to show any other player
+                    # info.
+                    progress_list.append(self._colorize(
+                        "Downloading",
+                        "magenta"
+                    ))
+                else:
+                    # Ok, not Downloading, show some player info.
+                    if ct.get("progress"):
+                        currently_playing_string += " (%s%%)" % (
+                            ct["progress"]["percent"]
+                        )
 
-                if "player_state" in ct:
-                    currently_playing_string += " %s" % player_state_string
+                    if ct.get("player_state"):
+                        if ct["player_state"] == "Stopped":
+                            color = "red"
+                        elif ct["player_state"] == "Paused":
+                            color = "white"
+                        elif ct["player_state"] == "Playing":
+                            color = "green"
+                        progress_list.append(
+                            self._colorize(
+                                ct["player_state"],
+                                color
+                            )
+                        )
+
+                if ct.get("repeat"):
+                    progress_list.append("R")
+
+                if ct.get("shuffle"):
+                    progress_list.append("S")
+
+                currently_playing_string += " | %s" % " | ".join(
+                    progress_list
+                )
 
                 self._print(currently_playing_string)
         elif "--statusbar" in args and args["--statusbar"]:
@@ -385,6 +425,7 @@ class SonarClient(object):
                     "queue_lenght": ct["queue_length"],
                     "state": ct["player_state"],
                     "repeat": ct["repeat"],
+                    "shuffle": ct["shuffle"],
                     "downloading": ct["downloading"]
                 }
             }
@@ -413,26 +454,46 @@ class SonarClient(object):
                 )
 
                 progress_list = []
-                if "progress" in ct and ct["progress"]:
-                    progress_list.append("%s / %s (%s%%)" % (
-                        self._format_time(ct["progress"]["time"]),
-                        self._format_time(ct["progress"]["length"]),
-                        ct["progress"]["percent"]
+                if ct.get("downloading"):
+                    # If Downloading, we do not want to show any other player
+                    # info.
+                    progress_list.append(self._colorize(
+                        "Downloading",
+                        "magenta"
                     ))
+                else:
+                    # Ok, not Downloading, show some player info.
+                    if ct.get("player_state"):
+                        if ct["player_state"] == "Stopped":
+                            color = "red"
+                        elif ct["player_state"] == "Paused":
+                            color = "white"
+                        elif ct["player_state"] == "Playing":
+                            color = "green"
+                        progress_list.append(
+                            self._colorize(
+                                ct["player_state"],
+                                color
+                            )
+                        )
 
-                if "player_state" in ct:
-                    progress_list.append("[%s]" % ct["player_state"])
+                    if "progress" in ct and ct["progress"]:
+                        progress_list.append("%s / %s (%s%%)" % (
+                            self._format_time(ct["progress"]["time"]),
+                            self._format_time(ct["progress"]["length"]),
+                            ct["progress"]["percent"]
+                        ))
 
-                if "repeat" in ct and ct["repeat"]:
-                    progress_list.append("[Repeat]")
+                if ct.get("repeat"):
+                    progress_list.append("Repeat")
 
-                if "downloading" in ct and ct["downloading"]:
-                    progress_list.append("[Downloading]")
+                if ct.get("shuffle"):
+                    progress_list.append("Shuffle")
 
                 self._print(currently_playing_string)
 
                 if progress_list:
-                    print("%s\n" % " ".join(progress_list))
+                    print("%s\n" % " | ".join(progress_list))
                 else:
                     print()
             else:

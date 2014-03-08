@@ -506,6 +506,7 @@ class SonarServer(object):
                 current_song_obj = self.queue.pop(self.current_song)
 
             shuffle(self.queue)
+            self.shuffle = True
 
             if self.current_song:
                 self.queue = [current_song_obj] + self.queue
@@ -517,6 +518,7 @@ class SonarServer(object):
                 current_song_obj = self.queue[self.current_song]
 
             self.queue = self._sort_queue(self.queue)
+            self.shuffle = False
 
             try:
                 self.current_song = self.queue.index(current_song_obj)
