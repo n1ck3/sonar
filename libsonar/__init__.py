@@ -1,7 +1,6 @@
 import os
 import sys
 import configparser
-import json
 from urllib.error import HTTPError
 
 from pysonic.libsonic.connection import Connection
@@ -18,7 +17,15 @@ def read_config():
         # Valiadate server section
         assert "sonar" in config
         assert "sonar_dir" in config["sonar"]
-        assert "prefetch_next_song" in config["sonar"]
+        try:
+            assert isinstance(config.getboolean("sonar", "prefetching"), bool)
+        except ValueError:
+            raise AssertionError
+        assert "cache_limit" in config["sonar"]
+        try:
+            assert isinstance(config.getint("sonar", "cache_limit"), int)
+        except ValueError:
+            raise AssertionError
 
         # Valiadate server section
         assert "server" in config
@@ -34,11 +41,11 @@ def read_config():
     except OSError:
         print("\nNo config file found.\n")
         print("Copy and modify `sonar.conf` to `~/.sonar.conf`\n")
-        sys.exit(0)
+        sys.exit(1)
     except AssertionError:
         print("\nMalformed config file.\n")
         print("Copy and modify `sonar.conf` to `~/.sonar.conf`\n")
-        sys.exit(0)
+        sys.exit(1)
 
     return config
 

@@ -70,7 +70,7 @@ class SonarClient(object):
 
         self.subsonic = subsonic.connection
         self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        self.cached_results = os.path.join(self.cache_dir, "results.cache")
+        self.cached_results = os.path.join(self.sonar_dir, "results.cache")
 
     def _socket_send(self, data):
 

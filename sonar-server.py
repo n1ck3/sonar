@@ -50,8 +50,10 @@ logger = logging.getLogger(__name__)
 class SonarServer(object):
     def __init__(self, msg_queue):
         self.config = read_config()
+        self.prefetching = self.config.getboolean("sonar", "prefetching")
         self.sonar_dir = os.path.join(self.config["sonar"]["sonar_dir"])
         self.cache_dir = os.path.join(self.sonar_dir, "cache")
+        self.cache_limit = self.config.getint("sonar", "cache_limit")
         os.makedirs(self.sonar_dir, exist_ok=True)
         os.makedirs(self.cache_dir, exist_ok=True)
 
@@ -81,6 +83,8 @@ class SonarServer(object):
 
     def _start_server(self):
         logger.info("Starting server")
+
+        self._enforce_cache_limit()
 
         operations = (
             "status",
@@ -259,6 +263,30 @@ class SonarServer(object):
         # Stop players and threads and whatnot
         self.player.quit()
 
+    def _touch_song(self, s_id, times=None):
+        file_path = os.path.join(self.cache_dir, "%s.mp3" % s_id)
+        with open(file_path, "a"):
+            os.utime(file_path, times)
+
+        self._enforce_cache_limit()
+
+    def _enforce_cache_limit(self):
+        cached_songs = [
+            os.path.join(self.cache_dir, f)
+            for f in os.listdir(self.cache_dir)
+            if f.endswith(".mp3")
+        ]
+        cached_songs.sort(key=lambda f: os.stat(f).st_mtime, reverse=True)
+        cache_size = sum(os.path.getsize(f) for f in cached_songs) >> 20
+
+        if cache_size > self.cache_limit:
+            logger.info("Enforcing cache limit of %d Mb" % self.cache_limit)
+
+        while cache_size > self.cache_limit:
+            oldest_song = cached_songs.pop()
+            os.remove(oldest_song)
+            cache_size = sum(os.path.getsize(f) for f in cached_songs) >> 20
+
     def _build_queue(self, data):
         queue = []
         # order_by_track_number = False
@@ -382,6 +410,7 @@ class SonarServer(object):
             s_id = self.queue[next_song]["id"]
             logger.info("Prefetching next song: %s" % s_id)
             self.player._get_song(s_id)
+            self._enforce_cache_limit()
         else:
             return False, "Could not prefetch next song."
 
@@ -396,7 +425,9 @@ class SonarServer(object):
             self.current_song = queue_index
             s_id = self.queue[queue_index]["id"]
             self.player.play_song(s_id)
-            threading.Thread(target=self._prefetch_next_song).start()
+            self._touch_song(s_id)
+            if self.prefetching:
+                threading.Thread(target=self._prefetch_next_song).start()
             return True, ""
 
         return False, "Index not in queue: %s" % queue_index
@@ -470,6 +501,12 @@ class SonarServer(object):
         if "artist" in data and data["artist"] or \
                 "album" in data and data["album"]:
             queue = self._sort_queue(queue)
+
+        if self.prefetching:
+            s_id = queue[0]["id"]
+            logger.info("Getting first song in queue: %s" % s_id)
+            self.player._get_song(s_id)
+            self._enforce_cache_limit()
 
         self.queue = queue
         self.stop()
