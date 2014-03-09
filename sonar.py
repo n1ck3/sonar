@@ -6,6 +6,7 @@ Sonar Client
 Usage:
     sonar.py search [artist | album | song] (SEARCH_STRING...) [options]
     sonar.py playlists [options]
+    sonar.py cached [options]
     sonar.py random [album | song] [options]
     sonar.py last [options]
     sonar.py play [INDEX...] [options]
@@ -397,6 +398,42 @@ class SonarClient(object):
 
         return self._format_results(ret)
 
+    def list_cached_songs(self, args):
+        res = self.get_cached_songs(args)
+        self._cache_results(res)
+        self._print_results(res)
+
+    def get_cached_songs(self, args):
+        tag_data_map = {
+            "title": (3, 33),
+            "artist": (33, 63),
+            "album": (63, 93),
+        }
+        cached_songs = []
+        for song_path in glob.glob(os.path.join(client.cache_dir, "*.mp3")):
+            song_id = os.path.basename(song_path).replace(".mp3", "")
+            try:
+                with open(song_path, "rb", 0) as song_file:
+                    try:
+                        song_file.seek(-128, 2)
+                        tag_data = song_file.read(128)
+                    finally:
+                        song_file.close()
+
+                    if tag_data[:3] == b"TAG":
+                        song_dict = {"id": song_id}
+                        for tag, (start, end) in tag_data_map.items():
+                            song_dict[tag] = tag_data[start:end].decode(
+                                "utf-8", "replace").replace("\x00", "").strip()
+                        cached_songs.append(song_dict)
+            except IOError:
+                # Something went wrong getting ID3 tag data,
+                # just skip this song.
+                pass
+
+        ret = {"song": cached_songs}
+        return self._format_results(ret)
+
     def list_playlists(self, args):
         res = self.get_playlists(args)
         self._cache_results(res)
@@ -737,6 +774,8 @@ if __name__ == "__main__":
     ###
     if args.get("search", False):
         client.search(args)
+    elif args.get("cached", False):
+        client.list_cached_songs(args)
     elif args.get("playlists", False):
         client.list_playlists(args)
     elif args.get("random"):
