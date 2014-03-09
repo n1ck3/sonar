@@ -11,7 +11,7 @@ Simple Python3 CLI for Subsonic Media Server
 
 ## Submodules
 * docopt (https://github.com/docopt/docopt)
-* py-sonic (https://github.com/n1ck3/py-sonic@master-py3)
+* py-sonic (https://github.com/crustymonkey/py-sonic@python3)
 * mplayer.py (https://github.com/baudm/mplayer.py.git)
 
 ## Installation
@@ -59,6 +59,7 @@ Options:
 Usage:
     sonar.py search [artist | album | song] (SEARCH_STRING...) [options]
     sonar.py playlists [options]
+    sonar.py cached [options]
     sonar.py random [album | song] [options]
     sonar.py last [options]
     sonar.py play [INDEX...] [options]
@@ -70,7 +71,7 @@ Usage:
         repeat [on | off] |
         shuffle |
         sort |
-        ( set | prepend | add | remove) [INDEX...]
+        (set | prepend | add | remove) [INDEX...]
     ] [options]
     sonar.py [status] [options]
 
@@ -87,6 +88,7 @@ Options:
 ## Cool features
 * Search for artist, albums, or songs
 * List your playlists **(New)**
+* List your cached (downloaded) songs **(New)**
 * List random albums or songs
 * Limiting returned results at will
 * Queue songs on server
@@ -100,17 +102,9 @@ Options:
 * Cache the so you don't have to download it again next time you want to listen to dat Bieber tune.
 * Prefetch next song in queue for fast playback **(New)**
 
-## ~~Known issues~~ Check out the issues
-* I had to fork the py-sonic (master-py3 branch) and run 2to3 (and tweak a few things) in order to make it play nice with python3.
-
 ## Roadmap
 * Add ability to remove songs from server queue. [Issue #1]
 * Lazy starting of the server if not running when wanting to use it with the client. [Issue #5]
-* Ability to list and queue playlists (and further down the road creating and deleting playlists as well as adding songs to and remove songs from playlists). [Issue #15]
 * Ability to handle playlists (adding songs to and remove songs from playlists). [Issue #16]
 * Implementing Subsonic Jukebox (ability to play music on the subsonic server rather than the client -- play the music on the good speakers at home). [Issue #9]
-* Limiting song cache size in mb (server should automatically remove songs that were touched the longest time ago when the limit is reached). [Issue #10]
 * Handle errors from server in client better. I.e. is server can't play queue index, let the user know. [Issue #8]
-
-## Long term roadmap
-* Fixing py-sonic for python3 and pull requesting it to crustymonkey. [Issue #11]
