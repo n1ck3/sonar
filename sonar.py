@@ -18,7 +18,7 @@ Usage:
         repeat [on | off] |
         shuffle |
         sort |
-        ( set | prepend | add | remove) [INDEX...]
+        (set | prepend | add | remove) [INDEX...]
     ] [options]
     sonar.py [status] [options]
 
