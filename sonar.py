@@ -20,6 +20,7 @@ Usage:
         sort |
         (set | prepend | add | remove) [INDEX...]
     ] [options]
+    sonar.py (interactive | i)
     sonar.py [status] [options]
 
 Options:
@@ -40,6 +41,7 @@ from docopt import docopt
 
 import os
 import sys
+import copy
 import socket
 import json
 import datetime
@@ -73,8 +75,75 @@ class SonarClient(object):
         self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.cached_results = os.path.join(self.sonar_dir, "results.cache")
 
-    def _socket_send(self, data):
+        self.is_interactive = False
 
+    def _delegate_command(self, args):
+        """
+        Main arg handler
+        """
+        if args.get("search", False):
+            client.search(args)
+        elif args.get("cached", False):
+            client.list_cached_songs(args)
+        elif args.get("playlists", False):
+            client.list_playlists(args)
+        elif args.get("random"):
+            client.random(args)
+        elif args.get("last"):
+            client._print_results()
+        elif args.get("play"):
+            client.play(args)
+        elif args.get("pause") or args.get("p"):
+            client.pause()
+        elif args.get("stop"):
+            client.stop()
+        elif args.get("previous"):
+            client.previous_song()
+        elif args.get("next"):
+            client.next_song()
+        elif args.get("rw"):
+            args["TIMESELTA"] = -args.get("TIMEDELTA", 5)
+            client.seek(args)
+        elif args.get("ff"):
+            client.seek(args)
+        elif args.get("queue") or args.get("q"):
+            if args.get("shuffle"):
+                client.shuffle(args)
+            elif args.get("repeat"):
+                client.repeat(args)
+            elif args.get("sort"):
+                client.sort_queue(args)
+            elif args.get("set"):
+                client.set_queue(args)
+            elif args.get("prepend"):
+                client.prepend_queue(args)
+            elif args["add"]:
+                client.append_queue(args)
+            elif args.get("remove"):
+                args["INDEX"] = args.get("INDEX", [])
+                if len(args["INDEX"]) == 0:
+                    # Make sure we are setting queue to empty
+                    args["INDEX"] = [-1]
+                client.remove_from_queue(args)
+            else:
+                # Default to show queue
+                client.show_queue()
+        elif args.get("interactive") or args.get("i"):
+            # Interavtive shell
+            if self.is_interactive:
+                print("in if")
+                return False, None
+            else:
+                self.is_interactive = True
+                self.interactive(args)
+        elif args.get("status") or True:
+            # Assume the user wants to know the status of what
+            # is being played at the moment.
+            client.status(args)
+
+        return True
+
+    def _socket_send(self, data):
         self.socket.connect((
             self.config['server']['host'],
             int(self.config['server']['port'])
@@ -153,9 +222,20 @@ class SonarClient(object):
 
             for idx in idxs:
                 album = res_list["album"][idx]
+                if album.get("title"):
+                    # Random albums have a title.
+                    album_name = album["title"]
+                elif album.get("name"):
+                    # Otherwise its called name.
+                    album_name = album["name"]
+                else:
+                    # Or die.
+                    print("Could not get album name...")
+                    sys.exit(1)
+
                 data["album"].append({
                     "id": album["id"],
-                    'album': album["name"],  # album["album"] ?
+                    'album': album_name,
                     "artist": album["artist"]
                 })
 
@@ -348,12 +428,12 @@ class SonarClient(object):
     def get_random(self, args):
         if "album" in args and args["album"]:
             ret = {"album": []}
-            res = self.subsonic.getAlbumList(
+            res = self.subsonic.getAlbumList2(
                 ltype="random",
                 size=args['--limit']
             )
-            if "album" in res["albumList"]:
-                ret["album"] = res["albumList"]["album"]
+            if "album" in res["albumList2"]:
+                ret["album"] = res["albumList2"]["album"]
         elif "song" in args and args["song"]:
             ret = {"song": []}
             res = self.subsonic.getRandomSongs(size=args["--limit"])
@@ -718,6 +798,26 @@ class SonarClient(object):
 
         self._socket_send(request)
 
+    def interactive(self, args):
+        prompt = "sonar > "
+        while True:
+            command = input(prompt)
+            commands = command.split(" ")
+            if "quit" in commands or "exit" in commands:
+                sys.exit(0)
+            elif len(commands) == 0:
+                commands = ["status"]
+
+            interactive_args = docopt(
+                __doc__,
+                argv=command.split(" "),
+                help=False
+            )
+
+            success = self._delegate_command(interactive_args)
+            if not success:
+                print("problem?")
+
 
 if __name__ == "__main__":
     args = docopt(__doc__, version=__version__)
@@ -769,57 +869,4 @@ if __name__ == "__main__":
     else:
         args["TIMEDELTA"] = 10
 
-    ###
-    ##  Main arg handler
-    ###
-    if args.get("search", False):
-        client.search(args)
-    elif args.get("cached", False):
-        client.list_cached_songs(args)
-    elif args.get("playlists", False):
-        client.list_playlists(args)
-    elif args.get("random"):
-        client.random(args)
-    elif args.get("last"):
-        client._print_results()
-    elif args.get("play"):
-        client.play(args)
-    elif args.get("pause") or args.get("p"):
-        client.pause()
-    elif args.get("stop"):
-        client.stop()
-    elif args.get("previous"):
-        client.previous_song()
-    elif args.get("next"):
-        client.next_song()
-    elif args.get("rw"):
-        args["TIMESELTA"] = -args.get("TIMEDELTA", 5)
-        client.seek(args)
-    elif args.get("ff"):
-        client.seek(args)
-    elif args.get("queue") or args.get("q"):
-        if args.get("shuffle"):
-            client.shuffle(args)
-        elif args.get("repeat"):
-            client.repeat(args)
-        elif args.get("sort"):
-            client.sort_queue(args)
-        elif args.get("set"):
-            client.set_queue(args)
-        elif args.get("prepend"):
-            client.prepend_queue(args)
-        elif args["add"]:
-            client.append_queue(args)
-        elif args.get("remove"):
-            args["INDEX"] = args.get("INDEX", [])
-            if len(args["INDEX"]) == 0:
-                # Make sure we are setting queue to empty
-                args["INDEX"] = [-1]
-            client.remove_from_queue(args)
-        else:
-            # Default to show queue
-            client.show_queue()
-    elif args.get("status") or True:
-        # Assume the user wants to know the status of what
-        # is being played at the moment.
-        client.status(args)
+    client._delegate_command(args)
