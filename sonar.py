@@ -153,9 +153,20 @@ class SonarClient(object):
 
             for idx in idxs:
                 album = res_list["album"][idx]
+                if album.get("title"):
+                    # Random albums have a title.
+                    album_name = album["title"]
+                elif album.get("name"):
+                    # Otherwise its called name.
+                    album_name = album["name"]
+                else:
+                    # Or die.
+                    print("Could not get album name...")
+                    sys.exit(1)
+
                 data["album"].append({
                     "id": album["id"],
-                    'album': album["name"],  # album["album"] ?
+                    'album': album_name,
                     "artist": album["artist"]
                 })
 
@@ -348,12 +359,12 @@ class SonarClient(object):
     def get_random(self, args):
         if "album" in args and args["album"]:
             ret = {"album": []}
-            res = self.subsonic.getAlbumList(
+            res = self.subsonic.getAlbumList2(
                 ltype="random",
                 size=args['--limit']
             )
-            if "album" in res["albumList"]:
-                ret["album"] = res["albumList"]["album"]
+            if "album" in res["albumList2"]:
+                ret["album"] = res["albumList2"]["album"]
         elif "song" in args and args["song"]:
             ret = {"song": []}
             res = self.subsonic.getRandomSongs(size=args["--limit"])
