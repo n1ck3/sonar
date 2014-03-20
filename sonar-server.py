@@ -496,20 +496,22 @@ class SonarServer(object):
             self.player.seek(timedelta)
 
     def set_queue(self, data):
+        self.stop()
+        self.queue = []
+
         queue = self._build_queue(data)
 
         if "artist" in data and data["artist"] or \
                 "album" in data and data["album"]:
             queue = self._sort_queue(queue)
 
+        self.queue = queue
+
         if self.prefetching:
             s_id = queue[0]["id"]
             logger.info("Getting first song in queue: %s" % s_id)
             self.player._get_song(s_id)
             self._enforce_cache_limit()
-
-        self.queue = queue
-        self.stop()
 
     def prepend_queue(self, data):
         queue = self._build_queue(data)
