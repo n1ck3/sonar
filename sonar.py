@@ -24,8 +24,8 @@ Usage:
     sonar.py [status] [options]
 
 Options:
-    -n LIMIT, --limit LIMIT     Limit results [default: 10]
     -h --help                   Shows this screen
+    -n LIMIT, --limit LIMIT     Limit results [default: 10]
     -s --short                  One line output
     -sb --statusbar             JSON output that can be used by statusbars
     -l --loglevel LOGLEVEL      Set the loglevel [default: warning]
@@ -41,8 +41,8 @@ from docopt import docopt
 
 import os
 import sys
-import copy
 import socket
+import subprocess
 import json
 import datetime
 import logging
@@ -71,8 +71,8 @@ class SonarClient(object):
         self.cache_dir = os.path.join(self.sonar_dir, "cache")
         os.makedirs(self.cache_dir, exist_ok=True)
 
+        self.socket = None
         self.subsonic = subsonic.connection
-        self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.cached_results = os.path.join(self.sonar_dir, "results.cache")
 
         self.is_interactive = False
@@ -131,7 +131,7 @@ class SonarClient(object):
         elif args.get("interactive") or args.get("i"):
             # Interavtive shell
             if self.is_interactive:
-                print("in if")
+                print("\nHuehuehue. Already interactive.\n")
                 return False, None
             else:
                 self.is_interactive = True
@@ -144,6 +144,7 @@ class SonarClient(object):
         return True
 
     def _socket_send(self, data):
+        self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.socket.connect((
             self.config['server']['host'],
             int(self.config['server']['port'])
@@ -434,7 +435,8 @@ class SonarClient(object):
             )
             if "album" in res["albumList2"]:
                 ret["album"] = res["albumList2"]["album"]
-        elif "song" in args and args["song"]:
+        else:
+            # Default to random songs...
             ret = {"song": []}
             res = self.subsonic.getRandomSongs(size=args["--limit"])
             if "song" in res["randomSongs"]:
@@ -800,23 +802,32 @@ class SonarClient(object):
 
     def interactive(self, args):
         prompt = "sonar > "
-        while True:
-            command = input(prompt)
-            commands = command.split(" ")
-            if "quit" in commands or "exit" in commands:
-                sys.exit(0)
-            elif len(commands) == 0:
-                commands = ["status"]
 
-            interactive_args = docopt(
-                __doc__,
-                argv=command.split(" "),
-                help=False
-            )
+        print("\nWelcome to Sonar interactive shell.")
+        print("\nType your commands here or ? for help...\n")
 
-            success = self._delegate_command(interactive_args)
-            if not success:
-                print("problem?")
+        try:
+            while True:
+                command = input(prompt)
+                commands = command.split()
+
+                if "help" in commands or "?" in commands:
+                    # Kind of hacky, but it didn't seem like docopt had a good
+                    # way of showing the help without exiting also...
+                    print("")
+                    subprocess.call([__file__, "-h"])
+                    print("")
+                elif "quit" in commands or "exit" in commands:
+                    print("\nbye...\n")
+                    sys.exit(0)
+                else:
+                    # Ok, so no special cases... Call Sonar again
+                    # with the commands.
+                    subprocess.call([__file__] + commands)
+        except (KeyboardInterrupt, EOFError):
+            # User wants out. Oblige.
+            print("\n\nbye...\n")
+            sys.exit(0)
 
 
 if __name__ == "__main__":
