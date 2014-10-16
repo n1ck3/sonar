@@ -27,7 +27,7 @@ Simple Python3 CLI for Subsonic Media Server
 **Example setup blow-by-blow**
 After having installed and configured `Subsonc` and `MPlayer`:
 ```bash
-$ mkdir ~/git && cd ~/git
+$ mkdir -p ~/git ; cd ~/git
 $ git clone https://github.com/n1ck3/sonar
 $ cd sonar
 $ git submodule init && git submodule update
