@@ -1,5 +1,6 @@
 import os
 import sys
+import traceback
 import configparser
 from urllib.error import HTTPError
 
@@ -42,9 +43,13 @@ def read_config():
         print("\nNo config file found.\n")
         print("Copy and modify `sonar.conf` to `~/.sonar.conf`\n")
         sys.exit(1)
-    except AssertionError:
+    except AssertionError as e:
+        _,_,tb = sys.exc_info()
+        #traceback.print_tb(tb)
+        tbInfo = traceback.extract_tb(tb)
+        filename,line,func,text = tbInfo[-1]
         print("\nMalformed config file.\n")
-        print("Copy and modify `sonar.conf` to `~/.sonar.conf`\n")
+        print("Please fix: %s \n" % text)
         sys.exit(1)
 
     return config
