@@ -31,8 +31,8 @@ $ mkdir -p ~/git ; cd ~/git
 $ git clone https://github.com/n1ck3/sonar
 $ cd sonar
 $ git submodule init && git submodule update
-$ sudo ln -s ~/src/sonar/sonar.py /usr/bin/sonar
-$ sudo ln -s ~/src/sonar/sonar-server.py /usr/bin/sonar-server
+$ sudo ln -s sonar.py /usr/bin/sonar
+$ sudo ln -s sonar-server.py /usr/bin/sonar-server
 ```
 
 ## Usage
