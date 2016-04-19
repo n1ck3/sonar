@@ -1,6 +1,6 @@
 [submodule "modules/mplayer"]
 	path = modules/mplayer
-	url = git://github.com/baudm/mplayer.py.git
+	url = git://github.com/n1ck3/mplayer.py.git
 [submodule "modules/docopt"]
 	path = modules/docopt
 	url = git://github.com/docopt/docopt.git
