@@ -19,7 +19,7 @@ Simple Python3 CLI for Subsonic Media Server
 1. Install system depencendies
 1. Pull this repo
 1. Initialize and update all submodules
-1. Copy and edit the `sonar.conf` file to your home directory `~/sonar.conf`.
+1. Copy and edit the `sonar.conf` file to your home directory `~/.sonar.conf`.
 1. Make sure sonar and sonar-server is in your path for easier usage.
    Optionally alias them to something short that you don't mind writing a lot.
    ;)
@@ -31,8 +31,8 @@ $ mkdir -p ~/git ; cd ~/git
 $ git clone https://github.com/n1ck3/sonar
 $ cd sonar
 $ git submodule init && git submodule update
-$ sudo ln -s sonar.py /usr/bin/sonar
-$ sudo ln -s sonar-server.py /usr/bin/sonar-server
+$ sudo ln -s /home/<user>/git/sonar/sonar.py /usr/bin/sonar
+$ sudo ln -s /home/<user>/git/sonar/sonar-server.py /usr/bin/sonar-server
 ```
 
 ## Usage
