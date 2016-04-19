@@ -4,6 +4,3 @@
 [submodule "modules/docopt"]
 	path = modules/docopt
 	url = git://github.com/docopt/docopt.git
-[submodule "py-sonic"]
-	path = modules/pysonic
-	url = https://github.com/crustymonkey/py-sonic.git
