@@ -5,18 +5,19 @@ Simple Python3 CLI for Subsonic Media Server
 
 ## System dependencies
 
-* Python3
-* MPlayer (http://www.mplayerhq.hu)
-* Subsonic Media Server (http://www.subsonic.org)
+* [Subsonic](http://www.subsonic.org) or [Madsonic](http://www.madsonic.org/) Media Server
+* [Python3](https://www.python.org/downloads/)
+* [MPlayer](http://www.mplayerhq.hu)
+* The [six](https://pypi.python.org/pypi/six) python library (required by py-sonic)
 
 ## Submodules
-* docopt (https://github.com/docopt/docopt)
-* py-sonic (https://github.com/crustymonkey/py-sonic@python3)
-* mplayer.py (https://github.com/baudm/mplayer.py.git)
+* [docopt](https://github.com/docopt/docopt)
+* [py-sonic](https://github.com/crustymonkey/py-sonic/tree/python3)
+* [mplayer.py](https://github.com/baudm/mplayer.py.git)
 
 ## Installation
 
-1. Install system depencendies
+1. Install system and python depencendies
 1. Pull this repo
 1. Initialize and update all submodules
 1. Copy and edit the `sonar.conf` file to your home directory `~/.sonar.conf`.
@@ -25,9 +26,9 @@ Simple Python3 CLI for Subsonic Media Server
    ;)
 
 **Example setup blow-by-blow**
-After having installed and configured `Subsonc` and `MPlayer`:
+After having installed and configured system and python dependencies:
 ```bash
-$ mkdir -p ~/git ; cd ~/git
+$ mkdir ~/git ; cd ~/git
 $ git clone https://github.com/n1ck3/sonar --recursive
 $ sudo ln -s /home/<user>/git/sonar/sonar.py /usr/bin/sonar
 $ sudo ln -s /home/<user>/git/sonar/sonar-server.py /usr/bin/sonar-server
@@ -101,8 +102,8 @@ Options:
 * Prefetch next song in queue for fast playback **(New)**
 
 ## Roadmap
-* Add ability to remove songs from server queue. [Issue #1]
-* Lazy starting of the server if not running when wanting to use it with the client. [Issue #5]
-* Ability to handle playlists (adding songs to and remove songs from playlists). [Issue #16]
-* Implementing Subsonic Jukebox (ability to play music on the subsonic server rather than the client -- play the music on the good speakers at home). [Issue #9]
-* Handle errors from server in client better. I.e. is server can't play queue index, let the user know. [Issue #8]
+* Add ability to remove songs from server queue. [Issue #1](https://github.com/n1ck3/sonar/issues/1)
+* Lazy starting of the server if not running when wanting to use it with the client. [Issue #5](https://github.com/n1ck3/sonar/issues/5)
+* Ability to handle playlists (adding songs to and remove songs from playlists). [Issue #16](https://github.com/n1ck3/sonar/issues/16)
+* Implementing Subsonic Jukebox (ability to play music on the subsonic server rather than the client -- play the music on the good speakers at home). [Issue #9](https://github.com/n1ck3/sonar/issues/9)
+* Handle errors from server in client better. I.e. is server can't play queue index, let the user know. [Issue #8](https://github.com/n1ck3/sonar/issues/8)
