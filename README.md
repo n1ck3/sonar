@@ -8,6 +8,7 @@ Simple Python3 CLI for Subsonic Media Server
 * Python3
 * MPlayer (http://www.mplayerhq.hu)
 * Subsonic Media Server (http://www.subsonic.org)
+* The "six" python library (required by py-sonic)
 
 ## Submodules
 * docopt (https://github.com/docopt/docopt)
