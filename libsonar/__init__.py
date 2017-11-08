@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+
 import os
 import sys
 import traceback
@@ -6,42 +8,47 @@ from urllib.error import HTTPError
 
 from pysonic.libsonic.connection import Connection
 
+from variables import CONFIG_DIR, CACHE_DIR, MUSIC_CACHE_DIR, LOG_DIR, RUN_DIR
+from variables import CONFIG_FILE
+
+def ensure_paths():
+    for path in [CONFIG_DIR, CACHE_DIR, MUSIC_CACHE_DIR, LOG_DIR, RUN_DIR]:
+        if not os.path.exists(path):
+            os.makedirs(path, exist_ok=True)
 
 def read_config():
-    config_file = "%s/.sonar.conf" % os.path.expanduser('~')
     config = configparser.ConfigParser()
-    config.read(config_file)
+    config.read(CONFIG_FILE)
     try:
-        if not os.path.exists(config_file):
+        if not os.path.exists(CONFIG_FILE):
             raise OSError
 
-        # Valiadate server section
+        # Valiadate media-server section
+        assert "media-server" in config
+        assert "host" in config["media-server"]
+        assert "port" in config["media-server"]
+        assert "user" in config["media-server"]
+        assert "password" in config["media-server"]
+
+        # Valiadate sonar-server section
         assert "sonar" in config
-        assert "sonar_dir" in config["sonar"]
+        assert "host" in config["sonar"]
+        assert "port" in config["sonar"]
+
         try:
-            assert isinstance(config.getboolean("sonar", "prefetching"), bool)
+            assert isinstance(config.getboolean("sonar", "prefetch"), bool)
         except ValueError:
             raise AssertionError
+
         assert "cache_limit" in config["sonar"]
         try:
             assert isinstance(config.getint("sonar", "cache_limit"), int)
         except ValueError:
             raise AssertionError
 
-        # Valiadate server section
-        assert "server" in config
-        assert "host" in config["server"]
-        assert "port" in config["server"]
-
-        # Valiadate subsonic section
-        assert "subsonic" in config
-        assert "host" in config["subsonic"]
-        assert "port" in config["subsonic"]
-        assert "user" in config["subsonic"]
-        assert "password" in config["subsonic"]
     except OSError:
         print("\nNo config file found.\n")
-        print("Copy and modify `sonar.conf` to `~/.sonar.conf`\n")
+        print("Copy and modify `sonar.conf` to `%s`\n" % CONFIG_FILE)
         sys.exit(1)
     except AssertionError as e:
         _,_,tb = sys.exc_info()
@@ -62,10 +69,10 @@ class Subsonic():
 
     def connect(self):
         connection = Connection(
-            self.config["subsonic"]["host"],
-            self.config["subsonic"]["user"],
-            self.config["subsonic"]["password"],
-            port=self.config["subsonic"]["port"]
+            self.config["media-server"]["host"],
+            self.config["media-server"]["user"],
+            self.config["media-server"]["password"],
+            port=self.config["media-server"]["port"]
         )
         try:
             connection.getLicense()

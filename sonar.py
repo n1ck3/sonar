@@ -41,39 +41,30 @@ from docopt import docopt
 
 import os
 import sys
+import readline
 import socket
 import subprocess
 import json
 import datetime
 import logging
+import logging.config
 import glob
 from html.parser import HTMLParser
 
 from libsonar import Subsonic
-from libsonar import read_config
+from libsonar import ensure_paths, read_config
 
-
-LOGFORMAT = '%(asctime)s %(levelname)s - %(message)s'
-logging.basicConfig(
-    format=LOGFORMAT,
-    datefmt='%m-%d %H:%M'
-)
-logger = logging.getLogger(__name__)
+from variables import CACHE_DIR, MUSIC_CACHE_DIR
+from variables import LOG_CONFIG
 
 
 class SonarClient(object):
     def __init__(self, subsonic):
         self.config = read_config()
 
-        self.sonar_dir = os.path.join(self.config["sonar"]["sonar_dir"])
-        os.makedirs(self.sonar_dir, exist_ok=True)
-
-        self.cache_dir = os.path.join(self.sonar_dir, "cache")
-        os.makedirs(self.cache_dir, exist_ok=True)
-
         self.socket = None
         self.subsonic = subsonic.connection
-        self.cached_results = os.path.join(self.sonar_dir, "results.cache")
+        self.cached_results = os.path.join(CACHE_DIR, "results.cache")
 
         self.is_interactive = False
 
@@ -146,8 +137,8 @@ class SonarClient(object):
     def _socket_send(self, data):
         self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.socket.connect((
-            self.config['server']['host'],
-            int(self.config['server']['port'])
+            self.config['sonar']['host'],
+            int(self.config['sonar']['port'])
         ))
 
         request = json.dumps(data)
@@ -186,7 +177,7 @@ class SonarClient(object):
         return results
 
     def _cached_songs(self):
-        cached_paths = glob.glob(os.path.join(client.cache_dir, "*.mp3"))
+        cached_paths = glob.glob(os.path.join(MUSIC_CACHE_DIR, "*.mp3"))
         return [os.path.basename(x).replace(".mp3", "") for x in cached_paths]
 
     def _build_server_data(self, idxs):
@@ -492,7 +483,7 @@ class SonarClient(object):
             "album": (63, 93),
         }
         cached_songs = []
-        for song_path in glob.glob(os.path.join(client.cache_dir, "*.mp3")):
+        for song_path in glob.glob(os.path.join(MUSIC_CACHE_DIR, "*.mp3")):
             song_id = os.path.basename(song_path).replace(".mp3", "")
             try:
                 with open(song_path, "rb", 0) as song_file:
@@ -834,8 +825,26 @@ if __name__ == "__main__":
     args = docopt(__doc__, version=__version__)
 
     ###
-    ## Set loglevel
+    ##  Make sure required system paths are available
     ###
+    try:
+        ensure_paths()
+    except Exception as e:
+        print("\nCould not create required system paths.")
+        print("%s\n" % e)
+        sys.exit(1)
+
+    ###
+    ##  Setup logging
+    ###
+    try:
+        logging.config.dictConfig(LOG_CONFIG)
+        logger = logging.getLogger("sonar-client")
+    except Exception as e:
+        print("\nCould not create logger.")
+        print("%s\n" % e)
+        sys.exit(1)
+
     loglevels = ["critical", "error", "warning", "info", "debug"]
     if "--loglevel" in args and args["--loglevel"] in loglevels:
         logger.setLevel(getattr(logging, args["--loglevel"].upper()))

@@ -24,6 +24,7 @@ import sys
 import time
 import socket
 import logging
+import logging.config
 import json
 import threading
 from sys import platform
@@ -32,42 +33,20 @@ from random import shuffle
 from queue import Queue
 
 from libsonar import Subsonic
-from libsonar import read_config
+from libsonar import ensure_paths, read_config
 
 from mplayer import Player as MPlayer
+
+from variables import CACHE_DIR, MUSIC_CACHE_DIR
+from variables import LOG_CONFIG, PID_FILE
 
 msg_queue = Queue(1)
 
 
-LOGFORMAT = '%(asctime)s %(levelname)s - %(message)s'
-logging.basicConfig(
-    format=LOGFORMAT,
-    datefmt='%m-%d %H:%M'
-)
-logger = logging.getLogger(__name__)
-
-
 class SonarServer(object):
     def __init__(self, msg_queue):
+        # Read config and setup the server accordingly
         self.config = read_config()
-        self.prefetching = self.config.getboolean("sonar", "prefetching")
-        self.sonar_dir = os.path.join(self.config["sonar"]["sonar_dir"])
-        self.cache_dir = os.path.join(self.sonar_dir, "cache")
-        self.cache_limit = self.config.getint("sonar", "cache_limit")
-        os.makedirs(self.sonar_dir, exist_ok=True)
-        os.makedirs(self.cache_dir, exist_ok=True)
-
-        try:
-            self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-            self.socket.bind(("", int(self.config['server']['port'])))
-            self.socket.listen(1)
-            self.socket.setblocking(0)
-            self.socket_is_open = True
-        except OSError as e:
-            print("\nCould not start server socket.")
-            print("%s\n" % e)
-            sys.exit(0)
 
         subsonic = Subsonic()
         self.subsonic = subsonic.connection
@@ -83,6 +62,18 @@ class SonarServer(object):
 
     def _start_server(self):
         logger.info("Starting server")
+
+        try:
+            self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            self.socket.bind(("", int(self.config['sonar']['port'])))
+            self.socket.listen(1)
+            self.socket.setblocking(0)
+            self.socket_is_open = True
+            logger.info("Listening on port: %s" % self.config['sonar']['port'])
+        except OSError as e:
+            logger.fatal("Could not start server socket. Exiting.")
+            sys.exit(1)
 
         self._enforce_cache_limit()
 
@@ -129,8 +120,12 @@ class SonarServer(object):
                 try:
                     # Try to handle the request.
                     data = str(data.decode("utf-8"))
-                    logger.info("Got request: %s" % data)
                     request = json.loads(data)
+
+                    log_info = json.dumps({"operation": request["operation"]})
+                    logger.info("Got request: %s" % log_info)
+                    if data != log_info:
+                        logger.debug("Full request: %s" % data)
 
                     if "operation" in request:
                         if request['operation'] in operations:
@@ -223,11 +218,11 @@ class SonarServer(object):
                                 ).start()
 
                             elif operation == "show_queue":
-                                ret = {
+                                ret.update({
                                     'queue': self.queue,
                                     'current_song': self.current_song,
                                     "player_state": self.player.player_state()
-                                }
+                                })
 
                         else:
                             # The request operation was not found in the list
@@ -240,18 +235,22 @@ class SonarServer(object):
 
                     # Send the response to the client.
                     response = json.dumps(ret)
-                    logger.info("Returning response: %s" % response)
                     conn.sendall(response.encode("utf-8"))
-
                     conn.close()
+
+                    log_info = json.dumps({"code": ret["code"]})
+                    logger.info("Returning response: %s" % log_info)
+                    if response != log_info:
+                        logger.debug("Full Response: %s" % response)
+
 
                 except Exception as e:
                     # Exception handler for request handler logic.
-                    print(e)
                     ret = {
                         "code": "ERROR",
                         "message": str(e)
                     }
+                    logger.critical(json.dumps(ret))
                     raise
 
             else:
@@ -264,7 +263,7 @@ class SonarServer(object):
         self.player.quit()
 
     def _touch_song(self, s_id, times=None):
-        file_path = os.path.join(self.cache_dir, "%s.mp3" % s_id)
+        file_path = os.path.join(MUSIC_CACHE_DIR, "%s.mp3" % s_id)
         with open(file_path, "a"):
             os.utime(file_path, times)
 
@@ -272,17 +271,17 @@ class SonarServer(object):
 
     def _enforce_cache_limit(self):
         cached_songs = [
-            os.path.join(self.cache_dir, f)
-            for f in os.listdir(self.cache_dir)
+            os.path.join(MUSIC_CACHE_DIR, f)
+            for f in os.listdir(MUSIC_CACHE_DIR)
             if f.endswith(".mp3")
         ]
         cached_songs.sort(key=lambda f: os.stat(f).st_mtime, reverse=True)
         cache_size = sum(os.path.getsize(f) for f in cached_songs) >> 20
 
-        if cache_size > self.cache_limit:
-            logger.info("Enforcing cache limit of %d Mb" % self.cache_limit)
+        if cache_size > int(self.config["sonar"]["cache_limit"]):
+            logger.info("Enforcing cache limit of %d Mb" % self.config["sonar"]["cache_limit"])
 
-        while cache_size > self.cache_limit:
+        while cache_size > int(self.config["sonar"]["cache_limit"]):
             oldest_song = cached_songs.pop()
             os.remove(oldest_song)
             cache_size = sum(os.path.getsize(f) for f in cached_songs) >> 20
@@ -401,7 +400,7 @@ class SonarServer(object):
             if isinstance(next_song, int):
                 return True, next_song
 
-        logger.warn("Could not determine next song in queue.")
+        logger.warning("Could not determine next song in queue.")
         return False, ""
 
     def _prefetch_next_song(self):
@@ -426,7 +425,7 @@ class SonarServer(object):
             s_id = self.queue[queue_index]["id"]
             self.player.play_song(s_id)
             self._touch_song(s_id)
-            if self.prefetching:
+            if self.config["sonar"]["prefetch"]:
                 threading.Thread(target=self._prefetch_next_song).start()
             return True, ""
 
@@ -507,9 +506,9 @@ class SonarServer(object):
 
         self.queue = queue
 
-        if self.prefetching:
+        if self.config["sonar"]["prefetch"]:
             s_id = queue[0]["id"]
-            logger.info("Getting first song in queue: %s" % s_id)
+            # logger.info("Getting first song in queue: %s" % s_id)
             self.player._get_song(s_id)
             self._enforce_cache_limit()
 
@@ -592,11 +591,8 @@ class SonarServer(object):
 
 class PlayerThread(threading.Thread):
     def __init__(self, subsonic, msg_queue):
+        # Read config and setup the player accordingly
         self.config = read_config()
-        self.cache_dir = os.path.join(
-            self.config["sonar"]["sonar_dir"],
-            "cache"
-        )
 
         self.download_queue = []
 
@@ -624,12 +620,13 @@ class PlayerThread(threading.Thread):
         return self.subsonic.stream(song_id)
 
     def _get_song(self, song_id):
-        song_file = os.path.join(self.cache_dir, "%s.mp3" % song_id)
-        if not os.path.exists(song_file):
+        song_file = os.path.join(MUSIC_CACHE_DIR, "%s.mp3" % song_id)
+        if os.path.exists(song_file):
+            logger.info("The song with id %s was found in the cache" % song_id)
             # Check if file already exists in cache
-            if not os.path.exists(self.cache_dir):
+            if not os.path.exists(MUSIC_CACHE_DIR):
                 # Make sure the cache dir is present.
-                os.makedirs(self.cache_dir)
+                os.makedirs(MUSIC_CACHE_DIR)
             if not song_id in self.download_queue:
                 # Check if the song is not already downloading
                 logger.debug("Downloading song with id: %s" % song_id)
@@ -639,9 +636,10 @@ class PlayerThread(threading.Thread):
                     f = open(song_file, "wb")
                     f.write(stream.read())
                     f.close()
+                    logger.debug("Finished downloading song with id: %s" % song_id)
                 except Exception as e:
                     logger.error(
-                        "Could not download song: %s - Error was: %s" % (
+                        "Could not download song with id: %s - Error was: %s" % (
                             song_id, e
                         )
                     )
@@ -651,7 +649,7 @@ class PlayerThread(threading.Thread):
             else:
                 logger.info(
                     "Song with id %s is already in download queue. \
-                    Skipping..." % song_id
+                    Doing nothing." % song_id
                 )
                 # TODO: Handle this. Should we wait here for a little bit
                 # and see if it finishes downloading?
@@ -664,10 +662,10 @@ class PlayerThread(threading.Thread):
         self.mplayer.stop()
         self.mplayer.loadfile(song_file)
 
-        # Hacky, but needed to work. Check if Linux, if so also
-        # play the file after loading it. On OS X, pressing play
+        # Hacky, but needed to work. Check if Linux or Darwin, if so
+        # also play the file after loading it. On OS X, pressing play
         # is not needed.
-        if "linux" in platform:
+        if "linux" or "darwin" in platform:
             self.mplayer.pause()
 
     def play(self):
@@ -735,8 +733,26 @@ if __name__ == "__main__":
     args = docopt(__doc__, version=__version__)
 
     ###
-    ## Set loglevel
+    ##  Make sure required system paths are available
     ###
+    try:
+        ensure_paths()
+    except Exception as e:
+        print("\nCould not create required system paths.")
+        print("%s\n" % e)
+        sys.exit(1)
+
+    ###
+    ##  Setup logging
+    ###
+    try:
+        logging.config.dictConfig(LOG_CONFIG)
+        logger = logging.getLogger("sonar-server")
+    except Exception as e:
+        print("\nCould not create logger")
+        print("%s\n" % e)
+        sys.exit(1)
+
     loglevels = ["critical", "error", "warning", "info", "debug"]
     if "--loglevel" in args and args["--loglevel"] in loglevels:
         logger.setLevel(getattr(logging, args["--loglevel"].upper()))
@@ -744,20 +760,17 @@ if __name__ == "__main__":
         logger.critical("Invalid loglevel. Exiting...")
         sys.exit(1)
 
-    config = read_config()
-    sonar_dir = os.path.join(config["sonar"]["sonar_dir"])
-    os.makedirs(sonar_dir, exist_ok=True)
-
-    # Check if another instance of sonar-server is running.
-    pidfile = os.path.join(sonar_dir, "sonar-server.pid")
+    ###
+    ##  Check if another instance of sonar-server is running.
+    ###
     pid = str(os.getpid())
-    if os.path.isfile(pidfile):
+    if os.path.isfile(PID_FILE):
         # Hmm, pidfile already exists. Either it is already running
         # in which case we should not start another instance of the
         # server, or the pidfile is stale (sonar-server did not exit
         # gracefully) and we should overwrite the pidfile and start
         # the server.
-        pf = open(pidfile, "rt")
+        pf = open(PID_FILE, "rt")
         existing_pid = pf.readline()
         pf.close()
         # TODO: Check if not running. In that case, go ahead.
@@ -772,15 +785,17 @@ if __name__ == "__main__":
         else:
             # If nothing was raised, process is running. Don't
             # start another instance of the server.
-            print("\nsonar-server is already running (%s)\n" % existing_pid)
+            logger.fatal("\nsonar-server is already running (%s). Exiting." % existing_pid)
             sys.exit(1)
 
     # Still here? Ok, write current pid and start the server.
-    pf = open(pidfile, "wt")
+    pf = open(PID_FILE, "wt")
     pf.write(pid)
     pf.close()
 
-    # Ok, let's instantiate the server.
+    ###
+    ##  Ok, let's instantiate the server.
+    ###
     server = SonarServer(msg_queue)
 
     try:
@@ -788,11 +803,11 @@ if __name__ == "__main__":
         server._start_server()
     except KeyboardInterrupt:
         # Got keyboard interrupt. Shut down gracefully.
-        print("\n\nKilled by keyboard interrupt\n")
+        logger.info("Stopping sonar-server. Got keyboard interrupt.")
         server._stop_server()
         try:
             # Try to remove pidfile
-            os.remove(pidfile)
+            os.remove(PID_FILE)
         except OSError:
             # The file doesn't exist. Whatever.
             pass
