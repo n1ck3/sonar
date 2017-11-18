@@ -9,6 +9,7 @@ Usage:
     sonar.py cached [options]
     sonar.py random [album | song] [options]
     sonar.py last [options]
+    sonar.py drill [INDEX] [options]
     sonar.py play [INDEX...] [options]
     sonar.py (pause | p) [options]
     sonar.py stop [options]
@@ -20,7 +21,7 @@ Usage:
         sort |
         (set | prepend | add | remove) [INDEX...]
     ] [options]
-    sonar.py (interactive | i)
+    sonar.py (interactive | i) [options]
     sonar.py [status] [options]
 
 Options:
@@ -37,7 +38,7 @@ Options:
 __author__ = "Niclas Helbro <niclas.helbro@gmail.com>"
 __version__ = "Sonar Client 0.1.3"
 
-from docopt import docopt
+from docopt import docopt, DocoptExit
 
 import os
 import sys
@@ -82,6 +83,8 @@ class SonarClient(object):
             client.random(args)
         elif args.get("last"):
             client._print_results()
+        elif args.get("drill"):
+            client.drill(args)
         elif args.get("play"):
             client.play(args)
         elif args.get("pause") or args.get("p"):
@@ -174,6 +177,9 @@ class SonarClient(object):
             f.close()
         except:
             results = []
+
+        logger.debug("Used cached results: %s" % json.dumps(results))
+
         return results
 
     def _cached_songs(self):
@@ -191,7 +197,10 @@ class SonarClient(object):
 
         if not res_list or len(res_list) == 0:
             print("\nNo result list found... Make a search first.\n")
-            sys.exit(1)
+            if is_interactive:
+                return
+            else:
+                sys.exit(1)
 
         if "artist" in res_list and len(res_list["artist"]) > 0:
             if isinstance(idxs, list) and len(idxs) == 1 and idxs[0] == -1:
@@ -223,9 +232,12 @@ class SonarClient(object):
                     # Otherwise its called name.
                     album_name = album["name"]
                 else:
-                    # Or die.
+                    # Or die (sorta).
                     print("\nCould not get album name...\n")
-                    sys.exit(1)
+                    if is_interactive:
+                        return
+                    else:
+                        sys.exit(1)
 
                 data["album"].append({
                     "id": album["id"],
@@ -473,12 +485,58 @@ class SonarClient(object):
             if "song" in res["searchResult3"]:
                 ret["song"] = res["searchResult3"]["song"]
 
+        logger.debug("Search retults: %s" % json.dumps(ret))
+
         return self._format_results(ret)
+
+    def drill(self, args):
+        drill_index = args.get("INDEX")
+        drill_entity = None
+        results = self._cached_results()
+        if "artist" in results and len(results["artist"]) > 0:
+            drill_entity = "artist"
+        elif "album" in results and len(results["album"]) > 0:
+            drill_entity = "album"
+        elif "playlists" in resulus and len(results["playlists"]) > 0:
+            drill_entity = "playlist"
+        elif "queue" in results or "song" in results:
+            print("Can't drill songs.")
+            raise Exception
+        else:
+            print("Something unexpected happened. You have to drill on either \
+                    artists, albums, or playlists.")
+
+        drill_list = results[drill_entity]
+
+        if len(drill_list) == 0:
+            print("\nCan't drill on empty result list. Make a search first...\n")
+            return
+        elif len(drill_index) == 0 and len(drill_list) > 1:
+            print("\nAmbiguous drill index. If the results contain more than\
+                    one artist, you have to supply an index to drill.\n")
+            return
+        elif len(drill_index) > 0 and drill_index[0] > len(drill_list)-1:
+            print("\nDrill index is outsude the result list. Try again.\n")
+            return
+        else:
+            # All good in the hood, either we have a drill index or we have
+            # only one result. Let's do some drilling, boys!
+            if len(drill_index) == 0:
+                drill_index = 0
+            else:
+                drill_index = drill_index[0]
+
+            logger.debug("Drilling:  %s" % json.dumps(drill_list[drill_index]))
+
+            drill_results = None
+
 
     def list_cached_songs(self, args):
         res = self.get_cached_songs(args)
         self._cache_results(res)
         self._print_results(res)
+
+        logger.debug("Listing cached songs: %s" % json.dumps(res))
 
     def get_cached_songs(self, args):
         tag_data_map = {
@@ -796,10 +854,11 @@ class SonarClient(object):
         self._socket_send(request)
 
     def interactive(self, args):
+
         prompt = "sonar > "
 
         print("\nWelcome to Sonar interactive shell.")
-        print("\nType your commands here or ? for help...\n")
+        print("\nType your commands here or '?' or 'help' for help.\n")
 
         try:
             while True:
@@ -814,8 +873,11 @@ class SonarClient(object):
                     print("\nbye...\n")
                     sys.exit(0)
                 else:
-                    interactive_args = get_args(argv=commands, help=False)
-                    self._delegate_command(interactive_args)
+                    try:
+                        interactive_args = get_args(argv=commands, help=False, is_interactive=True)
+                        self._delegate_command(interactive_args)
+                    except Exception:
+                        pass
 
         except (KeyboardInterrupt, EOFError):
             # User wants out. Oblige.
@@ -824,12 +886,21 @@ class SonarClient(object):
             sys.exit(0)
 
 
-def get_args(argv=None, help=True):
+def get_args(argv=None, help=True, is_interactive=False):
     """
      Get args and fix defaults and fallbacks
     """
 
-    args = docopt(__doc__, argv=argv, help=help, version=__version__)
+    try:
+        args = docopt(__doc__, argv=argv, help=help, version=__version__)
+    except DocoptExit as e:
+        if is_interactive:
+            print()
+            print("Error parsing command. \n")
+            print("Type '?' or 'help' for help.\n")
+            pass
+        else:
+            raise
 
     # Default to song if neither artist nor album nor song
     # ares given in args.
@@ -844,18 +915,24 @@ def get_args(argv=None, help=True):
             for idx in range(len(args["INDEX"])):
                 args["INDEX"][idx] = int(args["INDEX"][idx])
         except Exception as e:
-            logger.debug(str(e))
+            logger.warning(str(e))
             print("\nYou have to supply a list of integer indeces.\n")
-            sys.exit(1)
+            if is_interactive:
+                raise
+            else:
+                sys.exit(1)
 
     # If TIMEDELTA is in args, make sure it is an int.
     if "TIMEDELTA" in args and args["TIMEDELTA"]:
         try:
             args["TIMEDELTA"] = int(args["TIMEDELTA"])
         except Exception as e:
-            logger.debug(str(e))
+            logger.warning(str(e))
             print("\nThe time delta needs to be an integer.\n")
-            sys.exit(1)
+            if is_interactive:
+                raise
+            else:
+                sys.exit(1)
     else:
         args["TIMEDELTA"] = 10
 
@@ -880,7 +957,9 @@ if __name__ == "__main__":
     if "--loglevel" in args and args["--loglevel"] in loglevels:
         logger.setLevel(getattr(logging, args["--loglevel"].upper()))
     else:
-        logger.critical("Invalid loglevel. Exiting...")
+        exit_msg = "Invalid loglevel. Exiting..."
+        print("\n%s\n" % exit_msg)
+        logger.critical(exit_msg)
         sys.exit(1)
 
     # This is weird, but I need to get modified loglevel from args
