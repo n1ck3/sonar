@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-"""
+__doc__ = """
 Sonar Client
 
 Usage:
@@ -28,7 +28,7 @@ Options:
     -n LIMIT, --limit LIMIT     Limit results [default: 10]
     -s --short                  One line output
     -sb --statusbar             JSON output that can be used by statusbars
-    -l --loglevel LOGLEVEL      Set the loglevel [default: warning]
+    -l --loglevel LOGLEVEL      Set the loglevel [default: info]
                                 (critical | error | warning | info | debug)
     --version                   Show version
 
@@ -122,7 +122,7 @@ class SonarClient(object):
         elif args.get("interactive") or args.get("i"):
             # Interavtive shell
             if self.is_interactive:
-                print("\nHuehuehue. Already interactive.\n")
+                print("\nHuehuehue, nice try. Already interactive.\n")
                 return False, None
             else:
                 self.is_interactive = True
@@ -143,13 +143,13 @@ class SonarClient(object):
 
         request = json.dumps(data)
         self.socket.sendall(request.encode("utf-8"))
-        logger.debug("Sent data: %s" % data)
+        logger.debug("Sent request: %s" % data)
 
         response = self.socket.recv(102400)
         response = response.decode("utf-8")
 
         response_data = json.loads(response)
-        logger.debug("Received data: %s" % response_data)
+        logger.debug("Got response: %s" % response)
         if "message" in response_data:
             print("\n%s\n" % response_data["message"])
 
@@ -197,6 +197,7 @@ class SonarClient(object):
             if isinstance(idxs, list) and len(idxs) == 1 and idxs[0] == -1:
                 idxs = []
             elif len(idxs) == 0:
+                # No specific index given, assume everything.
                 idxs = range(0, len(res_list["artist"]))
 
             for idx in idxs:
@@ -210,6 +211,7 @@ class SonarClient(object):
             if isinstance(idxs, list) and len(idxs) == 1 and idxs[0] == -1:
                 idxs = []
             elif len(idxs) == 0:
+                # No specific index given, assume everything.
                 idxs = range(0, len(res_list["album"]))
 
             for idx in idxs:
@@ -222,7 +224,7 @@ class SonarClient(object):
                     album_name = album["name"]
                 else:
                     # Or die.
-                    print("Could not get album name...")
+                    print("\nCould not get album name...\n")
                     sys.exit(1)
 
                 data["album"].append({
@@ -235,6 +237,7 @@ class SonarClient(object):
             if isinstance(idxs, list) and len(idxs) == 1 and idxs[0] == -1:
                 idxs = []
             elif len(idxs) == 0:
+                # No specific index given, assume everything.
                 idxs = range(0, len(res_list["song"]))
 
             for idx in idxs:
@@ -251,6 +254,7 @@ class SonarClient(object):
             if isinstance(idxs, list) and len(idxs) == 1 and idxs[0] == -1:
                 idxs = []
             elif len(idxs) == 0:
+                # No specific index given, assume everything.
                 idxs = range(0, len(res_list["playlist"]))
 
             for idx in idxs:
@@ -801,66 +805,32 @@ class SonarClient(object):
             while True:
                 command = input(prompt)
                 commands = command.split()
+                logger.debug("Interactive command: %s" % json.dumps(commands))
 
-                if "help" in commands or "?" in commands:
-                    # Kind of hacky, but it didn't seem like docopt had a good
-                    # way of showing the help without exiting also...
-                    print("")
-                    subprocess.call([__file__, "-h"])
-                    print("")
+                if command in ["help", "?"]:
+                    print(__doc__)
                 elif "quit" in commands or "exit" in commands:
+                    logger.info("Quitting interactive client.")
                     print("\nbye...\n")
                     sys.exit(0)
                 else:
-                    # Ok, so no special cases... Call Sonar again
-                    # with the commands.
-                    subprocess.call([__file__] + commands)
+                    interactive_args = get_args(argv=commands, help=False)
+                    self._delegate_command(interactive_args)
+
         except (KeyboardInterrupt, EOFError):
             # User wants out. Oblige.
+            logger.info("Quitting interactive client. Got keyboard interrupt.")
             print("\n\nbye...\n")
             sys.exit(0)
 
 
-if __name__ == "__main__":
-    args = docopt(__doc__, version=__version__)
+def get_args(argv=None, help=True):
+    """
+     Get args and fix defaults and fallbacks
+    """
 
-    ###
-    ##  Make sure required system paths are available
-    ###
-    try:
-        ensure_paths()
-    except Exception as e:
-        print("\nCould not create required system paths.")
-        print("%s\n" % e)
-        sys.exit(1)
+    args = docopt(__doc__, argv=argv, help=help, version=__version__)
 
-    ###
-    ##  Setup logging
-    ###
-    try:
-        logging.config.dictConfig(LOG_CONFIG)
-        logger = logging.getLogger("sonar-client")
-    except Exception as e:
-        print("\nCould not create logger.")
-        print("%s\n" % e)
-        sys.exit(1)
-
-    loglevels = ["critical", "error", "warning", "info", "debug"]
-    if "--loglevel" in args and args["--loglevel"] in loglevels:
-        logger.setLevel(getattr(logging, args["--loglevel"].upper()))
-    else:
-        logger.critical("Invalid loglevel. Exiting...")
-        sys.exit(1)
-
-    ###
-    ##  Instatiate classes
-    ###
-    subsonic = Subsonic()
-    client = SonarClient(subsonic)
-
-    ###
-    ##  Fix defaults and fallbacks
-    ###
     # Default to song if neither artist nor album nor song
     # ares given in args.
     if not "artist" in args or not args["artist"] or \
@@ -889,4 +859,50 @@ if __name__ == "__main__":
     else:
         args["TIMEDELTA"] = 10
 
+    return args
+
+
+if __name__ == "__main__":
+    args = get_args()
+
+    ###
+    ##  Setup logging
+    ###
+    try:
+        logging.config.dictConfig(LOG_CONFIG)
+        logger = logging.getLogger("sonar-client")
+    except Exception as e:
+        print("\nCould not create logger.")
+        print("%s\n" % e)
+        sys.exit(1)
+
+    loglevels = ["critical", "error", "warning", "info", "debug"]
+    if "--loglevel" in args and args["--loglevel"] in loglevels:
+        logger.setLevel(getattr(logging, args["--loglevel"].upper()))
+    else:
+        logger.critical("Invalid loglevel. Exiting...")
+        sys.exit(1)
+
+    # This is weird, but I need to get modified loglevel from args
+    # in order to be able to determine if we should log any debug stuff.
+    logger.debug("args: %s" % json.dumps(args))
+
+    ###
+    ##  Make sure required system paths are available
+    ###
+    try:
+        ensure_paths()
+    except Exception as e:
+        print("\nCould not create required system paths.")
+        print("%s\n" % e)
+        sys.exit(1)
+
+    ###
+    ##  Instatiate classes
+    ###
+    subsonic = Subsonic()
+    client = SonarClient(subsonic)
+    logger.info("Initiated the client.")
+
+    logger.debug("Called with arguments: %s" % json.dumps(args))
     client._delegate_command(args)

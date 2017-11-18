@@ -40,12 +40,6 @@ LOG_CONFIG = {
             'maxBytes': 1024000,
             'backupCount': 3
         },
-        'client-console': {
-            'class': 'logging.StreamHandler',
-            'formatter': 'standard',
-            # 'level': 'WARNING',
-            'stream': 'ext://sys.stdout'
-        },
         'client-file': {
             'class': 'logging.handlers.RotatingFileHandler',
             'formatter': 'standard',
@@ -58,12 +52,12 @@ LOG_CONFIG = {
     'loggers': {
         'sonar-server': {
             'handlers': ['server-console', 'server-file'],
-            'level': 'DEBUG',
+            'level': 'INFO',
             'propagate': True
         },
         'sonar-client': {
-            'handlers': ['client-console', 'client-file'],
-            'level': 'WARNING',
+            'handlers': ['client-file'],
+            'level': 'INFO',
             'propagate': True
         },
     }
